@@ -1,6 +1,7 @@
 import axios from 'axios';
 
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'https://kisanflow-tgvk.vercel.app/api';
+// Live production API endpoint
+const API_BASE_URL = 'https://kisanflow-tgvk.vercel.app/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

@@ -45,11 +45,14 @@ const Register = () => {
       saveSession(token, normalised);
       navigate('/farmer/dashboard', { replace: true });
     } catch (err) {
-      const msg = err.response?.data?.error || '';
+      console.error('Register error:', err);
+      const msg = err.response?.data?.error;
+      const status = err.response?.status;
+      const targetUrl = (err.config?.baseURL || '') + (err.config?.url || '');
       if (msg === 'Farmer already registered') {
         setError('You are already registered. Please go to Login instead.');
       } else {
-        setError(msg || 'Registration failed. Is the backend server running?');
+        setError(msg || `${err.message || 'Registration failed'} (URL: ${targetUrl || 'unknown'}, Status: ${status || 'Network Error'})`);
       }
     } finally {
       setLoading(false);

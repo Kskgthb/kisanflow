@@ -36,11 +36,14 @@ const Login = () => {
       saveSession(token, normalised);
       navigate('/farmer/dashboard', { replace: true });
     } catch (err) {
-      const msg = err.response?.data?.error || '';
+      console.error('Login error:', err);
+      const msg = err.response?.data?.error;
+      const status = err.response?.status;
+      const targetUrl = (err.config?.baseURL || '') + (err.config?.url || '');
       if (msg === 'Invalid credentials') {
         setError('Wrong phone number or password. Please try again.');
       } else {
-        setError(msg || 'Login failed. Is the backend server running?');
+        setError(msg || `${err.message || 'Request failed'} (URL: ${targetUrl || 'unknown'}, Status: ${status || 'Network Error'})`);
       }
     } finally {
       setLoading(false);
