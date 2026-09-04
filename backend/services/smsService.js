@@ -122,4 +122,5 @@ function sendTwilioSMS(to, body) {
 
 module.exports = {
   sendSMS,
+  sendFast2SMS,
 };
