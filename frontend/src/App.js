@@ -17,8 +17,8 @@ function App() {
         <Route path="/register" element={<Register />} />
         <Route path="/farmer/dashboard" element={<FarmerDashboard />} />
         <Route path="/farmer/book-slot" element={<BookSlot />} />
-        <Route path="/farmer/track/:bookingId" element={<TrackBooking />} />  // 👈 Naya
-        <Route path="/farmer/payments" element={<PaymentHistory />} />  // 👈 Naya
+        <Route path="/farmer/track/:bookingId" element={<TrackBooking />} />
+        <Route path="/farmer/payments" element={<PaymentHistory />} />
       </Routes>
     </Router>
   );
