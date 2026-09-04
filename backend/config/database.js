@@ -1,14 +1,25 @@
 const { Pool } = require('pg');
 require('dotenv').config();
 
-// Multiple connection options try karo
-const connectionOptions = {
-  user: process.env.DB_USER || 'postgres',
-  host: process.env.DB_HOST || 'localhost',
-  database: process.env.DB_NAME || 'kisanflow',
-  password: process.env.DB_PASSWORD || 'Postgres@',
-  port: process.env.DB_PORT || 5432,
-};
+// Support DATABASE_URL (Neon/Supabase/Railway) or individual env vars (local)
+let connectionOptions;
+
+if (process.env.DATABASE_URL) {
+  // Cloud PostgreSQL (Neon, Supabase, Railway, etc.)
+  connectionOptions = {
+    connectionString: process.env.DATABASE_URL,
+    ssl: { rejectUnauthorized: false }, // Required for Neon
+  };
+} else {
+  // Local PostgreSQL
+  connectionOptions = {
+    user: process.env.DB_USER || 'postgres',
+    host: process.env.DB_HOST || 'localhost',
+    database: process.env.DB_NAME || 'kisanflow',
+    password: process.env.DB_PASSWORD || 'Postgres@',
+    port: parseInt(process.env.DB_PORT || '5432'),
+  };
+}
 
 
 console.log('🔍 Connecting with:', {
