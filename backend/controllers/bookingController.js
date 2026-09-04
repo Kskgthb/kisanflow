@@ -1,4 +1,5 @@
 const db = require('../config/database');
+const { sendSMS } = require('../services/smsService');
 
 exports.getCentres = async (req, res) => {
   try {
@@ -42,15 +43,19 @@ exports.createBooking = async (req, res) => {
   try {
     const { farmerId, centreId, cropId, bookingDate, slotTime, quantity } = req.body;
     
+    // 1. Calculate Token Number & Queue Position
     const tokenResult = await db.query(
       `SELECT COUNT(*) as count FROM slot_bookings WHERE centre_id = $1 AND booking_date = $2`,
       [centreId, bookingDate]
     );
     
     const tokenCount = parseInt(tokenResult.rows[0].count) + 1;
-    const dateStr = bookingDate.replace(/-/g, '');
+    const dateStr = String(bookingDate).replace(/-/g, '');
     const tokenNumber = `KISAN-${dateStr}-${String(tokenCount).padStart(3, '0')}`;
+    const queuePosition = tokenCount;
+    const estimatedWaitMinutes = Math.max(10, (queuePosition - 1) * 15);
     
+    // 2. Insert into slot_bookings
     const result = await db.query(
       `INSERT INTO slot_bookings (farmer_id, centre_id, crop_id, booking_date, slot_time, estimated_quantity_quintals, token_number)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -58,16 +63,53 @@ exports.createBooking = async (req, res) => {
       [farmerId, centreId, cropId, bookingDate, slotTime, quantity, tokenNumber]
     );
     
+    // 3. Insert into live_queue
     await db.query(
       `INSERT INTO live_queue (centre_id, booking_id, queue_position, current_status)
        VALUES ($1, $2, $3, 'WAITING')`,
-      [centreId, result.rows[0].id, tokenCount]
+      [centreId, result.rows[0].id, queuePosition]
     );
+
+    // 4. Fetch Farmer & Centre details for SMS
+    const farmerRes = await db.query('SELECT full_name, phone_number FROM farmers WHERE id = $1', [farmerId]);
+    const centreRes = await db.query('SELECT name, district FROM procurement_centres WHERE id = $1', [centreId]);
     
-    res.status(201).json({ success: true, booking: result.rows[0], tokenNumber });
+    const farmer = farmerRes.rows[0] || {};
+    const centre = centreRes.rows[0] || {};
+    const farmerPhone = farmer.phone_number;
+    const farmerName = farmer.full_name || 'Kisan';
+    const centreName = centre.name || 'Procurement Centre';
+
+    // 5. Compose and Send SMS
+    const smsMessage = `🌾 KisanFlow Alert: Namaste ${farmerName} ji! Aapka slot book ho gaya hai.
+📌 Token No: ${tokenNumber}
+🔢 Queue Position: #${queuePosition}
+⏱️ Waiting Time: ~${estimatedWaitMinutes} Mins
+🏢 Mandi: ${centreName}
+📅 Date: ${bookingDate} (${slotTime})
+Dhanyawad!`;
+
+    if (farmerPhone) {
+      await sendSMS({
+        to: farmerPhone,
+        message: smsMessage,
+        farmerId: farmerId,
+      });
+    }
+    
+    res.status(201).json({
+      success: true,
+      booking: result.rows[0],
+      tokenNumber,
+      queuePosition,
+      estimatedWaitMinutes,
+      smsSent: !!farmerPhone,
+      smsPhone: farmerPhone,
+      smsMessage,
+    });
   } catch (error) {
     console.error('Booking error:', error);
-    res.status(500).json({ error: 'Failed to create booking' });
+    res.status(500).json({ error: error.message || 'Failed to create booking' });
   }
 };
 
