@@ -2,6 +2,8 @@ const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const db = require('../config/database');
 
+const JWT_SECRET = process.env.JWT_SECRET || 'kisanflow_secret_key_2024';
+
 exports.registerFarmer = async (req, res) => {
   try {
     const { aadharNumber, fullName, phoneNumber, village, district, state, bankAccount, bankIfsc, landArea, password } = req.body;
@@ -16,25 +18,25 @@ exports.registerFarmer = async (req, res) => {
       return res.status(400).json({ error: 'Farmer already registered' });
     }
     
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password || '123456', 10);
     
     const result = await db.query(
       `INSERT INTO farmers (aadhar_number, full_name, phone_number, village, district, state, bank_account, bank_ifsc, land_area_acres, password_hash)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
        RETURNING id, full_name, phone_number, district`,
-      [aadharNumber, fullName, phoneNumber, village, district, state, bankAccount, bankIfsc, landArea, passwordHash]
+      [aadharNumber, fullName, phoneNumber, village, district, state, bankAccount, bankIfsc, landArea ? parseFloat(landArea) : 0, passwordHash]
     );
     
     const token = jwt.sign(
       { id: result.rows[0].id },
-      process.env.JWT_SECRET,
+      JWT_SECRET,
       { expiresIn: '30d' }
     );
     
     res.status(201).json({ success: true, token, farmer: result.rows[0] });
   } catch (error) {
     console.error('Register error:', error);
-    res.status(500).json({ error: 'Registration failed' });
+    res.status(500).json({ error: error.message || 'Registration failed' });
   }
 };
 
@@ -57,7 +59,7 @@ exports.loginFarmer = async (req, res) => {
     
     const token = jwt.sign(
       { id: farmer.id },
-      process.env.JWT_SECRET,
+      JWT_SECRET,
       { expiresIn: '30d' }
     );
     
@@ -72,6 +74,7 @@ exports.loginFarmer = async (req, res) => {
       }
     });
   } catch (error) {
-    res.status(500).json({ error: 'Login failed' });
+    console.error('Login error:', error);
+    res.status(500).json({ error: error.message || 'Login failed' });
   }
 };
