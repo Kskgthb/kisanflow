@@ -3,7 +3,7 @@ const db = require('../config/database');
 
 /**
  * Universal SMS Service
- * Supports Fast2SMS, Twilio, and Console/DB Logging
+ * Supports Fast2SMS, Twilio, and Database Notification Records
  */
 async function sendSMS({ to, message, farmerId }) {
   const cleanPhone = String(to).replace(/[^0-9]/g, '').slice(-10);
@@ -24,23 +24,31 @@ async function sendSMS({ to, message, farmerId }) {
     console.error('Error saving SMS notification to database:', dbErr.message);
   }
 
-  // 2. Fast2SMS Integration (if FAST2SMS_API_KEY is configured)
+  // 2. Fast2SMS Integration
   if (process.env.FAST2SMS_API_KEY) {
     try {
-      await sendFast2SMS(cleanPhone, message, process.env.FAST2SMS_API_KEY);
-      return { success: true, provider: 'Fast2SMS' };
+      // Clean non-ascii/emojis because Indian telecom gateways reject emojis in English routes
+      const cleanMsg = message
+        .replace(/[\u{1F600}-\u{1F6FF}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}]/gu, '')
+        .replace(/\n+/g, ' ')
+        .trim();
+
+      const result = await sendFast2SMS(cleanPhone, cleanMsg, process.env.FAST2SMS_API_KEY);
+      console.log('✅ Fast2SMS Response:', result);
+      return { success: true, provider: 'Fast2SMS', result };
     } catch (err) {
-      console.error('Fast2SMS failed:', err.message);
+      console.error('❌ Fast2SMS failed:', err.message);
     }
   }
 
-  // 3. Twilio Integration (if Twilio credentials are configured)
+  // 3. Twilio Integration
   if (process.env.TWILIO_ACCOUNT_SID && process.env.TWILIO_AUTH_TOKEN && process.env.TWILIO_PHONE_NUMBER) {
     try {
-      await sendTwilioSMS(`+91${cleanPhone}`, message);
-      return { success: true, provider: 'Twilio' };
+      const result = await sendTwilioSMS(`+91${cleanPhone}`, message);
+      console.log('✅ Twilio Response:', result);
+      return { success: true, provider: 'Twilio', result };
     } catch (err) {
-      console.error('Twilio failed:', err.message);
+      console.error('❌ Twilio failed:', err.message);
     }
   }
 
@@ -49,24 +57,12 @@ async function sendSMS({ to, message, farmerId }) {
 
 function sendFast2SMS(numbers, message, apiKey) {
   return new Promise((resolve, reject) => {
-    const data = JSON.stringify({
-      route: 'q',
-      message: message,
-      language: 'english',
-      flash: 0,
-      numbers: numbers,
-    });
-
+    const encodedMessage = encodeURIComponent(message);
     const options = {
       hostname: 'www.fast2sms.com',
       port: 443,
-      path: '/dev/bulkV2',
-      method: 'POST',
-      headers: {
-        authorization: apiKey,
-        'Content-Type': 'application/json',
-        'Content-Length': Buffer.byteLength(data),
-      },
+      path: `/dev/bulkV2?authorization=${encodeURIComponent(apiKey)}&route=q&message=${encodedMessage}&language=english&flash=0&numbers=${encodeURIComponent(numbers)}`,
+      method: 'GET',
     };
 
     const req = https.request(options, (res) => {
@@ -76,7 +72,7 @@ function sendFast2SMS(numbers, message, apiKey) {
         try {
           const parsed = JSON.parse(body);
           if (parsed.return) resolve(parsed);
-          else reject(new Error(parsed.message || 'Fast2SMS error'));
+          else reject(new Error(parsed.message || JSON.stringify(parsed)));
         } catch (e) {
           resolve(body);
         }
@@ -84,7 +80,6 @@ function sendFast2SMS(numbers, message, apiKey) {
     });
 
     req.on('error', reject);
-    req.write(data);
     req.end();
   });
 }

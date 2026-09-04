@@ -122,15 +122,34 @@ const BookSlot = () => {
 
           {/* SMS Notification Banner */}
           <div style={styles.smsBox}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
-              <span style={{ fontSize: '20px' }}>📱</span>
-              <strong style={{ color: '#1565c0', fontSize: '14px' }}>
-                SMS Sent to {bookingSuccess.smsPhone ? `+91 ${bookingSuccess.smsPhone}` : 'Registered Mobile'}
-              </strong>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '20px' }}>📱</span>
+                <strong style={{ color: '#1565c0', fontSize: '14px' }}>
+                  SMS Sent to {bookingSuccess.smsPhone ? `+91 ${bookingSuccess.smsPhone}` : 'Registered Mobile'}
+                </strong>
+              </div>
             </div>
             <pre style={styles.smsPreview}>
               {bookingSuccess.smsMessage || `Token: ${bookingSuccess.tokenNumber}\nQueue Position: #${bookingSuccess.queuePosition}\nWaiting Time: ~${bookingSuccess.estimatedWaitMinutes} Mins`}
             </pre>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+              <a
+                href={`https://wa.me/91${bookingSuccess.smsPhone || ''}?text=${encodeURIComponent(bookingSuccess.smsMessage || '')}`}
+                target="_blank"
+                rel="noreferrer"
+                style={styles.whatsappBtn}
+              >
+                💬 Open WhatsApp
+              </a>
+              <a
+                href={`sms:+91${bookingSuccess.smsPhone || ''}?body=${encodeURIComponent(bookingSuccess.smsMessage || '')}`}
+                style={styles.phoneSmsBtn}
+              >
+                ✉️ Open SMS App
+              </a>
+            </div>
           </div>
 
           <div style={{ display: 'flex', gap: '10px', marginTop: '20px' }}>
@@ -363,6 +382,30 @@ const styles = {
     fontFamily: 'inherit',
     margin: 0,
     lineHeight: '1.4',
+  },
+  whatsappBtn: {
+    flex: 1,
+    padding: '8px 12px',
+    background: '#25D366',
+    color: 'white',
+    textDecoration: 'none',
+    borderRadius: '6px',
+    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: '13px',
+    display: 'inline-block',
+  },
+  phoneSmsBtn: {
+    flex: 1,
+    padding: '8px 12px',
+    background: '#0284c7',
+    color: 'white',
+    textDecoration: 'none',
+    borderRadius: '6px',
+    textAlign: 'center',
+    fontWeight: 'bold',
+    fontSize: '13px',
+    display: 'inline-block',
   },
   trackBtn: {
     flex: 1,
