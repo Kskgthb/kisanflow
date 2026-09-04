@@ -7,12 +7,18 @@ require('./config/database');
 
 const app = express();
 
-// Allow requests from any origin (update in production to your frontend URL)
+// Universal CORS handler: automatically echoes back caller's origin to avoid trailing-slash mismatches
 app.use(cors({
-  origin: process.env.FRONTEND_URL || '*',
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  origin: (origin, callback) => {
+    // Allow any origin (reflects incoming origin header)
+    callback(null, true);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
+
+app.options('*', cors());
 
 app.use(express.json());
 app.use('/api', routes);
