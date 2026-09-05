@@ -138,11 +138,15 @@ exports.getBookingById = async (req, res) => {
     const { id } = req.params;
     const result = await db.query(
       `SELECT sb.*, pc.name as centre_name, pc.district, c.name as crop_name, c.msp_per_quintal,
-              lq.queue_position, lq.current_status as queue_status
+              lq.queue_position, lq.current_status as queue_status,
+              pr.bill_number, pr.actual_quantity_quintals, pr.quality_grade, pr.total_amount as procurement_amount, pr.status as procurement_status,
+              pay.payment_status, pay.utr_number, pay.amount as payment_amount, pay.credited_date
        FROM slot_bookings sb
        LEFT JOIN procurement_centres pc ON sb.centre_id = pc.id
        LEFT JOIN crops c ON sb.crop_id = c.id
        LEFT JOIN live_queue lq ON sb.id = lq.booking_id
+       LEFT JOIN procurement_records pr ON sb.id = pr.booking_id
+       LEFT JOIN payments pay ON pr.id = pay.procurement_id
        WHERE sb.id = $1`,
       [id]
     );
@@ -155,21 +159,35 @@ exports.getBookingById = async (req, res) => {
     const queuePos = row.queue_position || 1;
     const waitMins = Math.max(10, (queuePos - 1) * 15);
 
-    res.json({
-      booking: {
-        id: row.id,
-        tokenNumber: row.token_number,
-        cropName: row.crop_name,
-        quantity: row.estimated_quantity_quintals,
-        centreName: row.centre_name,
-        district: row.district,
-        bookingDate: row.booking_date ? new Date(row.booking_date).toISOString().slice(0, 10) : '',
-        slotTime: row.slot_time,
-        status: row.status,
-        queuePosition: queuePos,
-        estimatedWait: waitMins,
-      }
-    });
+    const bookingData = {
+      id: row.id,
+      tokenNumber: row.token_number,
+      cropName: row.crop_name,
+      quantity: row.estimated_quantity_quintals,
+      centreName: row.centre_name,
+      district: row.district,
+      bookingDate: row.booking_date ? new Date(row.booking_date).toISOString().slice(0, 10) : '',
+      slotTime: row.slot_time,
+      status: row.status,
+      queuePosition: queuePos,
+      estimatedWait: waitMins,
+    };
+
+    // Include payment/procurement details if available
+    if (row.bill_number) {
+      bookingData.billNumber = row.bill_number;
+      bookingData.qualityGrade = row.quality_grade;
+      bookingData.procurementAmount = row.procurement_amount;
+      bookingData.procurementStatus = row.procurement_status;
+    }
+    if (row.payment_status) {
+      bookingData.paymentStatus = row.payment_status;
+      bookingData.paymentAmount = row.payment_amount;
+      bookingData.utrNumber = row.utr_number;
+      bookingData.creditedDate = row.credited_date ? new Date(row.credited_date).toISOString().slice(0, 10) : null;
+    }
+
+    res.json({ booking: bookingData });
   } catch (error) {
     console.error('Failed to fetch booking:', error);
     res.status(500).json({ error: error.message || 'Failed to fetch booking' });

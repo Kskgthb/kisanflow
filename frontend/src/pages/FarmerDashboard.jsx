@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { bookingService } from '../services/api';
 import { getSession, clearSession } from '../services/auth';
 import { useLanguage } from '../context/LanguageContext';
@@ -12,6 +12,8 @@ const FarmerDashboard = () => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
+  const location = useLocation();
+
   useEffect(() => {
     const session = getSession();
     if (!session) {
@@ -19,8 +21,10 @@ const FarmerDashboard = () => {
       return;
     }
     setFarmer(session.farmer);
+    // Re-fetch every time we navigate to this page (catches status updates from TrackBooking)
+    setLoading(true);
     fetchBookings(session.farmer.id);
-  }, [navigate]);
+  }, [navigate, location.key]);
 
   const fetchBookings = async (farmerId) => {
     try {
@@ -61,6 +65,14 @@ const FarmerDashboard = () => {
         return { background: '#ffebee', color: '#c62828' };
       case 'CHECKED_IN':
         return { background: '#e3f2fd', color: '#1565c0' };
+      case 'WEIGHING':
+        return { background: '#e0f7fa', color: '#00838f' };
+      case 'QUALITY_CHECK':
+        return { background: '#f3e5f5', color: '#7b1fa2' };
+      case 'BILL_GENERATED':
+        return { background: '#e8eaf6', color: '#283593' };
+      case 'PAYMENT_INITIATED':
+        return { background: '#fff8e1', color: '#f57f17' };
       default:
         return { background: '#f5f5f5', color: '#666' };
     }

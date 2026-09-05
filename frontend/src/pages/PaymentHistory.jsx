@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { paymentService } from '../services/api';
 import { getSession } from '../services/auth';
@@ -7,65 +7,58 @@ import LanguageSelector from '../components/LanguageSelector';
 
 const PaymentHistory = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { t, tCrop, tStatus } = useLanguage();
-  const [payments, setPayments] = useState([
-    {
-      id: 1,
-      billNumber: 'BILL-20260315-001',
-      cropName: 'Wheat',
-      quantity: 5.5,
-      amount: 12512.50,
-      status: 'CREDITED',
-      initiatedDate: '2026-03-15',
-      creditedDate: '2026-03-18',
-      utrNumber: 'UTR123456789',
-    },
-    {
-      id: 2,
-      billNumber: 'BILL-20260220-002',
-      cropName: 'Paddy',
-      quantity: 8.0,
-      amount: 17464.00,
-      status: 'PROCESSING',
-      initiatedDate: '2026-02-20',
-      creditedDate: null,
-      utrNumber: null,
-    },
-    {
-      id: 3,
-      billNumber: 'BILL-20260115-003',
-      cropName: 'Wheat',
-      quantity: 3.5,
-      amount: 7962.50,
-      status: 'CREDITED',
-      initiatedDate: '2026-01-15',
-      creditedDate: '2026-01-18',
-      utrNumber: 'UTR987654321',
-    },
-  ]);
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const fetchPayments = async () => {
+    setLoading(true);
     const session = getSession();
-    if (session?.farmer?.id) {
-      paymentService.getFarmerPayments(session.farmer.id)
-        .then((res) => {
-          if (res.data?.payments && res.data.payments.length > 0) {
-            setPayments(
-              res.data.payments.map((p) => ({
-                ...p,
-                amount: parseFloat(p.amount) || 0,
-                quantity: parseFloat(p.quantity) || 0,
-                initiatedDate: p.initiatedDate ? new Date(p.initiatedDate).toISOString().slice(0, 10) : '',
-                creditedDate: p.creditedDate ? new Date(p.creditedDate).toISOString().slice(0, 10) : null,
-              }))
-            );
-          }
-        })
-        .catch((err) => {
-          console.warn('Live payments fetch fallback:', err.message);
-        });
+    if (!session?.farmer?.id) {
+      setLoading(false);
+      return;
     }
-  }, []);
+    try {
+      const res = await paymentService.getFarmerPayments(session.farmer.id);
+      if (res.data?.payments && res.data.payments.length > 0) {
+        setPayments(
+          res.data.payments.map((p) => ({
+            ...p,
+            amount: parseFloat(p.amount) || 0,
+            quantity: parseFloat(p.quantity) || 0,
+            initiatedDate: p.initiatedDate ? new Date(p.initiatedDate).toISOString().slice(0, 10) : '',
+            creditedDate: p.creditedDate ? new Date(p.creditedDate).toISOString().slice(0, 10) : null,
+          }))
+        );
+      } else {
+        setPayments([]);
+      }
+    } catch (err) {
+      console.warn('Live payments fetch fallback:', err.message);
+      // Only show demo data if API is unreachable
+      setPayments([
+        {
+          id: 1,
+          billNumber: 'BILL-20260315-001',
+          cropName: 'Wheat',
+          quantity: 5.5,
+          amount: 12512.50,
+          status: 'CREDITED',
+          initiatedDate: '2026-03-15',
+          creditedDate: '2026-03-18',
+          utrNumber: 'UTR123456789',
+        },
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Re-fetch every time the user navigates to this page
+  useEffect(() => {
+    fetchPayments();
+  }, [location.key]);
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -111,6 +104,16 @@ const PaymentHistory = () => {
       </div>
 
       {/* Payments List */}
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+          <p style={{ fontSize: '20px' }}>⏳ {t('common.loading')}</p>
+        </div>
+      ) : payments.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
+          <p style={{ fontSize: '48px' }}>💳</p>
+          <p>{t('paymentHistory.noPayments')}</p>
+        </div>
+      ) : (
       <div style={styles.paymentsList}>
         {payments.map(payment => (
           <div key={payment.id} style={styles.paymentCard}>
@@ -195,6 +198,7 @@ const PaymentHistory = () => {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 };

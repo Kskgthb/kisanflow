@@ -143,6 +143,8 @@ export const translations = {
       initiated: 'Initiated:',
       credited: 'Credited:',
       utrNumber: 'UTR Number:',
+      billNumber: 'Bill Number:',
+      noPayments: 'No payments yet. Complete a booking to see payment records.',
       
       steps: {
         initiated: 'Initiated',
@@ -317,6 +319,8 @@ export const translations = {
       initiated: 'प्रारंभ तिथि:',
       credited: 'जमा तिथि:',
       utrNumber: 'UTR संदर्भ संख्या:',
+      billNumber: 'बिल नंबर:',
+      noPayments: 'अभी तक कोई भुगतान नहीं। बुकिंग पूरा करें तो भुगतान रिकॉर्ड दिखेगा।',
       
       steps: {
         initiated: 'प्रारंभ',
@@ -491,6 +495,8 @@ export const translations = {
       initiated: 'শুরুর তারিখ:',
       credited: 'জমার তারিখ:',
       utrNumber: 'UTR রেফারেন্স নম্বর:',
+      billNumber: 'বিল নম্বর:',
+      noPayments: 'এখনও কোনো পেমেন্ট নেই। বুকিং সম্পূর্ণ করুন পেমেন্ট দেখতে।',
       
       steps: {
         initiated: 'শুরু হয়েছে',

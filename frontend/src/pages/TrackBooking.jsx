@@ -94,14 +94,29 @@ const TrackBooking = () => {
       await bookingService.updateBookingStatus(bookingId, targetDbStatus);
     } catch (err) {
       console.warn('Backend status update request note:', err.message);
-    } finally {
-      // Always update local view
+    }
+
+    // Re-fetch from backend to confirm all tables (slot_bookings, procurement_records, payments) got updated
+    try {
+      const response = await bookingService.getBookingById(bookingId);
+      if (response.data?.booking) {
+        const data = response.data.booking;
+        setBooking(data);
+        syncStagesWithStatus(data.status || targetDbStatus);
+      } else {
+        // Fallback to local update if re-fetch doesn't return data
+        syncStagesWithStatus(stageKey);
+        setBooking((prev) => (prev ? { ...prev, status: targetDbStatus } : prev));
+      }
+    } catch (err) {
+      // Fallback to local update
       syncStagesWithStatus(stageKey);
       setBooking((prev) => (prev ? { ...prev, status: targetDbStatus } : prev));
-      setUpdating(false);
-      setStatusMsg(t('trackBooking.stageUpdated', { stage: t(`trackBooking.stages.${stageKey}`) }));
-      setTimeout(() => setStatusMsg(''), 4000);
     }
+
+    setUpdating(false);
+    setStatusMsg(t('trackBooking.stageUpdated', { stage: t(`trackBooking.stages.${stageKey}`) }));
+    setTimeout(() => setStatusMsg(''), 4000);
   };
 
   const isCompleted = booking?.status === 'COMPLETED';
@@ -142,35 +157,71 @@ const TrackBooking = () => {
           padding: '18px 24px',
           borderRadius: '12px',
           marginBottom: '20px',
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
           boxShadow: '0 4px 15px rgba(46, 125, 50, 0.25)',
         }}>
-          <div>
-            <h3 style={{ margin: '0 0 4px 0', fontSize: '18px' }}>
-              {t('trackBooking.bookingCompletedNotice')}
-            </h3>
-            <p style={{ margin: 0, opacity: 0.9, fontSize: '14px' }}>
-              {t('statuses.COMPLETED')}
-            </p>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: booking?.paymentStatus ? '15px' : 0 }}>
+            <div>
+              <h3 style={{ margin: '0 0 4px 0', fontSize: '18px' }}>
+                {t('trackBooking.bookingCompletedNotice')}
+              </h3>
+              <p style={{ margin: 0, opacity: 0.9, fontSize: '14px' }}>
+                {t('statuses.COMPLETED')}
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/farmer/payments')}
+              style={{
+                padding: '10px 18px',
+                background: 'white',
+                color: '#2e7d32',
+                border: 'none',
+                borderRadius: '8px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                fontSize: '14px',
+                boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+              }}
+            >
+              {t('trackBooking.viewPaymentBtn')}
+            </button>
           </div>
-          <button
-            onClick={() => navigate('/farmer/payments')}
-            style={{
-              padding: '10px 18px',
-              background: 'white',
-              color: '#2e7d32',
-              border: 'none',
+          {/* Payment confirmation details */}
+          {booking?.paymentStatus && (
+            <div style={{
+              background: 'rgba(255,255,255,0.15)',
               borderRadius: '8px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
+              padding: '12px 16px',
+              display: 'grid',
+              gridTemplateColumns: 'repeat(2, 1fr)',
+              gap: '10px',
               fontSize: '14px',
-              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
-            }}
-          >
-            {t('trackBooking.viewPaymentBtn')}
-          </button>
+            }}>
+              {booking.billNumber && (
+                <div>
+                  <span style={{ opacity: 0.8 }}>📄 {t('paymentHistory.billNumber')}</span>
+                  <strong style={{ display: 'block' }}>{booking.billNumber}</strong>
+                </div>
+              )}
+              {booking.paymentAmount && (
+                <div>
+                  <span style={{ opacity: 0.8 }}>💰 {t('paymentHistory.amount')}</span>
+                  <strong style={{ display: 'block' }}>₹{parseFloat(booking.paymentAmount).toLocaleString('en-IN')}</strong>
+                </div>
+              )}
+              {booking.utrNumber && (
+                <div>
+                  <span style={{ opacity: 0.8 }}>🏦 UTR</span>
+                  <strong style={{ display: 'block' }}>{booking.utrNumber}</strong>
+                </div>
+              )}
+              {booking.creditedDate && (
+                <div>
+                  <span style={{ opacity: 0.8 }}>✅ {t('paymentHistory.credited')}</span>
+                  <strong style={{ display: 'block' }}>{booking.creditedDate}</strong>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
