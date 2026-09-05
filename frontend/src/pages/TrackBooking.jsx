@@ -22,6 +22,8 @@ const TrackBooking = () => {
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [statusMsg, setStatusMsg] = useState('');
+  // Track the highest stage index reached so UI can never go backwards
+  const highestStageRef = React.useRef(0);
   const [procurementStatus, setProcurementStatus] = useState({
     currentStage: 'BOOKED',
     stages: [
@@ -35,13 +37,19 @@ const TrackBooking = () => {
     ],
   });
 
-  const syncStagesWithStatus = (statusCode) => {
+  const syncStagesWithStatus = (statusCode, allowRegress = false) => {
     const norm = statusCode === 'COMPLETED' ? 'PAYMENT_CREDITED' : statusCode;
     const stageIdx = STAGE_KEYS.indexOf(norm);
-    const targetIdx = stageIdx >= 0 ? stageIdx : 0;
+    const newIdx = stageIdx >= 0 ? stageIdx : 0;
+
+    // Never go backwards unless explicitly allowed (e.g. initial load)
+    if (!allowRegress) {
+      highestStageRef.current = Math.max(highestStageRef.current, newIdx);
+    }
+    const targetIdx = allowRegress ? newIdx : highestStageRef.current;
 
     setProcurementStatus((prev) => ({
-      currentStage: norm,
+      currentStage: STAGE_KEYS[targetIdx],
       stages: prev.stages.map((stage, idx) => ({
         ...stage,
         completed: idx <= targetIdx,
@@ -57,11 +65,11 @@ const TrackBooking = () => {
         if (response.data?.booking) {
           const data = response.data.booking;
           setBooking(data);
-          syncStagesWithStatus(data.status || 'BOOKED');
+          // allowRegress=true: initial load sets correct DB status as starting point
+          syncStagesWithStatus(data.status || 'BOOKED', true);
         }
       } catch (err) {
         console.warn('Live booking fetch failed, using fallback:', err.message);
-        // Fallback demo data
         const demoBooking = {
           id: bookingId,
           tokenNumber: `KISAN-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-001`,
@@ -75,7 +83,7 @@ const TrackBooking = () => {
           estimatedWait: 10,
         };
         setBooking(demoBooking);
-        syncStagesWithStatus('BOOKED');
+        syncStagesWithStatus('BOOKED', true);
       } finally {
         setLoading(false);
       }
