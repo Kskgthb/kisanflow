@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { bookingService } from '../services/api';
 import { getSession, clearSession } from '../services/auth';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageSelector from '../components/LanguageSelector';
 
 const FarmerDashboard = () => {
   const navigate = useNavigate();
+  const { t, tCrop, tStatus } = useLanguage();
   const [farmer, setFarmer] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,10 +70,15 @@ const FarmerDashboard = () => {
     <div style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
-        <h1 style={styles.logo}>🌾 KisanFlow</h1>
+        <h1 style={styles.logo}>🌾 {t('common.appName')}</h1>
         <div style={styles.headerRight}>
-          <span style={styles.welcome}>Welcome, {farmer?.fullName}</span>
-          <button onClick={handleLogout} style={styles.logoutBtn}>Logout</button>
+          <LanguageSelector variant="light" />
+          <span style={styles.welcome}>
+            {t('common.welcome', { name: farmer?.fullName || 'Kisan' })}
+          </span>
+          <button onClick={handleLogout} style={styles.logoutBtn}>
+            {t('common.logout')}
+          </button>
         </div>
       </div>
 
@@ -80,53 +88,53 @@ const FarmerDashboard = () => {
           onClick={() => navigate('/farmer/book-slot')} 
           style={styles.quickActionBtn}
         >
-          📅 Book New Slot
+          {t('dashboard.bookNewSlot')}
         </button>
         <button 
           onClick={() => navigate('/farmer/payments')} 
           style={styles.quickActionBtn}
         >
-          💳 Payment History
+          {t('dashboard.paymentHistory')}
         </button>
       </div>
 
       {/* Stats Cards */}
       <div style={styles.statsRow}>
         <div style={styles.statCard}>
-          <h3>Upcoming Bookings</h3>
+          <h3>{t('dashboard.upcomingBookings')}</h3>
           <p style={styles.statNumber}>
             {bookings.filter(b => b.status === 'BOOKED').length}
           </p>
         </div>
         <div style={styles.statCard}>
-          <h3>Completed</h3>
+          <h3>{t('dashboard.completedBookings')}</h3>
           <p style={styles.statNumber}>
             {bookings.filter(b => b.status === 'COMPLETED').length}
           </p>
         </div>
         <div style={styles.statCard}>
-          <h3>Total Bookings</h3>
+          <h3>{t('dashboard.totalBookings')}</h3>
           <p style={styles.statNumber}>{bookings.length}</p>
         </div>
       </div>
 
       {/* Bookings List */}
       <div style={styles.bookingsSection}>
-        <h2 style={styles.sectionTitle}>📋 My Bookings</h2>
+        <h2 style={styles.sectionTitle}>{t('dashboard.myBookings')}</h2>
         
         {loading ? (
           <div style={styles.loadingState}>
-            <p>Loading your bookings...</p>
+            <p>{t('dashboard.loadingBookings')}</p>
           </div>
         ) : bookings.length === 0 ? (
           <div style={styles.emptyState}>
             <p style={styles.emptyIcon}>🚜</p>
-            <p>No bookings yet</p>
+            <p>{t('dashboard.noBookings')}</p>
             <button 
               onClick={() => navigate('/farmer/book-slot')} 
               style={styles.emptyBtn}
             >
-              Book Your First Slot
+              {t('dashboard.bookFirstSlot')}
             </button>
           </div>
         ) : (
@@ -139,14 +147,14 @@ const FarmerDashboard = () => {
                   </div>
                   <div style={styles.bookingInfo}>
                     <h4 style={styles.cropName}>
-                      {booking.crop_name} - {booking.estimated_quantity_quintals} quintals
+                      {tCrop(booking.crop_name)} - {booking.estimated_quantity_quintals} {t('common.quintals')}
                     </h4>
                     <p style={styles.bookingDetail}>📍 {booking.centre_name}</p>
                     <p style={styles.bookingDetail}>
                       📅 {new Date(booking.booking_date).toLocaleDateString('en-IN')} at {booking.slot_time}
                     </p>
                     <p style={styles.tokenText}>
-                      🎫 Token: <strong>{booking.token_number}</strong>
+                      🎫 {t('dashboard.tokenLabel')}: <strong>{booking.token_number}</strong>
                     </p>
                   </div>
                 </div>
@@ -156,14 +164,14 @@ const FarmerDashboard = () => {
                     ...styles.statusBadge,
                     ...getStatusStyle(booking.status)
                   }}>
-                    {booking.status}
+                    {tStatus(booking.status)}
                   </span>
                   
                   <button 
                     onClick={() => navigate(`/farmer/track/${booking.id}`)}
                     style={styles.trackBtn}
                   >
-                    📊 Track Status
+                    {t('dashboard.trackStatus')}
                   </button>
                 </div>
               </div>

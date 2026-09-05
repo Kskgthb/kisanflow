@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../services/api';
 import { saveSession, isLoggedIn } from '../services/auth';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageSelector from '../components/LanguageSelector';
 
 const Login = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({ phoneNumber: '', password: '' });
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -41,7 +44,7 @@ const Login = () => {
       const status = err.response?.status;
       const targetUrl = (err.config?.baseURL || '') + (err.config?.url || '');
       if (msg === 'Invalid credentials') {
-        setError('Wrong phone number or password. Please try again.');
+        setError(t('auth.invalidCredentials'));
       } else {
         setError(msg || `${err.message || 'Request failed'} (URL: ${targetUrl || 'unknown'}, Status: ${status || 'Network Error'})`);
       }
@@ -53,47 +56,54 @@ const Login = () => {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px' }}>
+          <LanguageSelector variant="light" />
+        </div>
+
         <div style={styles.header}>
           <span style={styles.logo}>🌾</span>
-          <h1 style={styles.title}>KisanFlow</h1>
-          <p style={styles.subtitle}>Smart Procurement System</p>
+          <h1 style={styles.title}>{t('auth.loginTitle')}</h1>
+          <p style={styles.subtitle}>{t('auth.loginSubtitle')}</p>
         </div>
 
         {error && <div style={styles.error}>{error}</div>}
 
         <form onSubmit={handleSubmit}>
           <div style={styles.formGroup}>
-            <label style={styles.label}>Phone Number</label>
+            <label style={styles.label}>{t('auth.phoneNumber')}</label>
             <input
               type="tel"
               value={formData.phoneNumber}
               onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
               style={styles.input}
-              placeholder="9876543210"
+              placeholder={t('auth.phonePlaceholder')}
               maxLength="10"
               required
             />
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>Password</label>
+            <label style={styles.label}>{t('auth.password')}</label>
             <input
               type="password"
               value={formData.password}
               onChange={(e) => setFormData({ ...formData, password: e.target.value })}
               style={styles.input}
-              placeholder="Enter password"
+              placeholder={t('auth.passwordPlaceholder')}
               required
             />
           </div>
 
           <button type="submit" style={styles.button} disabled={loading}>
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? t('auth.loggingIn') : t('auth.loginBtn')}
           </button>
         </form>
 
         <p style={styles.footer}>
-          New farmer? <Link to="/register">Register here</Link>
+          {t('auth.newFarmer')}{' '}
+          <Link to="/register" style={{ color: '#667eea', fontWeight: 'bold' }}>
+            {t('auth.registerHere')}
+          </Link>
         </p>
       </div>
     </div>

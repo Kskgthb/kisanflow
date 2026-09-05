@@ -1,20 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageSelector from '../components/LanguageSelector';
 
 const TrackBooking = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
+  const { t, tCrop, tStatus } = useLanguage();
   const [booking, setBooking] = useState(null);
   const [procurementStatus, setProcurementStatus] = useState({
     currentStage: 'BOOKED',
     stages: [
-      { key: 'BOOKED', label: 'Slot Booked', icon: '📅', completed: true },
-      { key: 'CHECKED_IN', label: 'Checked In', icon: '✅', completed: false },
-      { key: 'WEIGHING', label: 'Weighing Done', icon: '⚖️', completed: false },
-      { key: 'QUALITY_CHECK', label: 'Quality Check', icon: '🔍', completed: false },
-      { key: 'BILL_GENERATED', label: 'Bill Generated', icon: '📄', completed: false },
-      { key: 'PAYMENT_INITIATED', label: 'Payment Initiated', icon: '💰', completed: false },
-      { key: 'PAYMENT_CREDITED', label: 'Payment Credited', icon: '🏦', completed: false },
+      { key: 'BOOKED', icon: '📅', completed: true },
+      { key: 'CHECKED_IN', icon: '✅', completed: false },
+      { key: 'WEIGHING', icon: '⚖️', completed: false },
+      { key: 'QUALITY_CHECK', icon: '🔍', completed: false },
+      { key: 'BILL_GENERATED', icon: '📄', completed: false },
+      { key: 'PAYMENT_INITIATED', icon: '💰', completed: false },
+      { key: 'PAYMENT_CREDITED', icon: '🏦', completed: false },
     ]
   });
 
@@ -49,10 +52,13 @@ const TrackBooking = () => {
     <div style={styles.container}>
       {/* Header */}
       <div style={styles.header}>
-        <button onClick={() => navigate('/farmer/dashboard')} style={styles.backBtn}>
-          ← Back to Dashboard
-        </button>
-        <h1 style={styles.title}>📊 Live Procurement Tracking</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <button onClick={() => navigate('/farmer/dashboard')} style={styles.backBtn}>
+            {t('common.backToDashboard')}
+          </button>
+          <h1 style={styles.title}>{t('trackBooking.title')}</h1>
+        </div>
+        <LanguageSelector variant="light" />
       </div>
 
       {booking && (
@@ -60,24 +66,24 @@ const TrackBooking = () => {
           {/* Booking Info Card */}
           <div style={styles.infoCard}>
             <div style={styles.tokenSection}>
-              <p style={styles.tokenLabel}>Your Token Number</p>
+              <p style={styles.tokenLabel}>{t('trackBooking.tokenNumber')}</p>
               <h2 style={styles.tokenNumber}>{booking.tokenNumber}</h2>
             </div>
             <div style={styles.detailsGrid}>
               <div style={styles.detailItem}>
-                <span>🌾 Crop</span>
-                <strong>{booking.cropName}</strong>
+                <span>{t('trackBooking.crop')}</span>
+                <strong>{tCrop(booking.cropName)}</strong>
               </div>
               <div style={styles.detailItem}>
-                <span>📦 Quantity</span>
-                <strong>{booking.quantity} quintals</strong>
+                <span>{t('trackBooking.quantity')}</span>
+                <strong>{booking.quantity} {t('common.quintals')}</strong>
               </div>
               <div style={styles.detailItem}>
-                <span>📍 Centre</span>
+                <span>{t('trackBooking.centre')}</span>
                 <strong>{booking.centreName}</strong>
               </div>
               <div style={styles.detailItem}>
-                <span>📅 Date</span>
+                <span>{t('trackBooking.dateTime')}</span>
                 <strong>{booking.bookingDate} at {booking.slotTime}</strong>
               </div>
             </div>
@@ -85,26 +91,26 @@ const TrackBooking = () => {
 
           {/* Queue Status */}
           <div style={styles.queueCard}>
-            <h3>🎫 Queue Status</h3>
+            <h3>{t('trackBooking.queueStatusTitle')}</h3>
             <div style={styles.queueInfo}>
               <div>
-                <p>Your Position</p>
+                <p>{t('trackBooking.yourPosition')}</p>
                 <h2>#{booking.queuePosition}</h2>
               </div>
               <div>
-                <p>Estimated Wait</p>
-                <h2>{booking.estimatedWait} mins</h2>
+                <p>{t('trackBooking.estimatedWait')}</p>
+                <h2>{booking.estimatedWait} {t('common.mins')}</h2>
               </div>
               <div>
-                <p>Current Status</p>
-                <h2 style={{color: '#ff9800'}}>IN PROGRESS</h2>
+                <p>{t('trackBooking.currentStatus')}</p>
+                <h2 style={{color: '#ff9800'}}>{tStatus(booking.status)}</h2>
               </div>
             </div>
           </div>
 
           {/* Progress Timeline */}
           <div style={styles.timelineCard}>
-            <h3>📈 Procurement Status</h3>
+            <h3>{t('trackBooking.procurementStatusTitle')}</h3>
             <div style={styles.timeline}>
               {procurementStatus.stages.map((stage, index) => (
                 <div key={stage.key} style={styles.timelineItem}>
@@ -121,9 +127,9 @@ const TrackBooking = () => {
                       color: stage.completed ? '#333' : '#999',
                       fontWeight: stage.completed ? 'bold' : 'normal',
                     }}>
-                      {stage.icon} {stage.label}
+                      {stage.icon} {t(`trackBooking.stages.${stage.key}`)}
                     </p>
-                    {stage.completed && <p style={styles.completedText}>✅ Completed</p>}
+                    {stage.completed && <p style={styles.completedText}>✅ {t('trackBooking.completed')}</p>}
                   </div>
                   {index < procurementStatus.stages.length - 1 && (
                     <div style={{
@@ -138,26 +144,26 @@ const TrackBooking = () => {
 
           {/* Demo Controls - Staff ke liye (Remove in production) */}
           <div style={styles.demoControls}>
-            <h3>🎮 Demo Controls (Staff View)</h3>
-            <p>Click to simulate procurement progress:</p>
+            <h3>{t('trackBooking.demoTitle')}</h3>
+            <p>{t('trackBooking.demoSubtitle')}</p>
             <div style={styles.buttonGroup}>
               <button onClick={() => updateStage('CHECKED_IN')} style={styles.demoBtn}>
-                ✅ Check In
+                {t('trackBooking.demoButtons.CHECKED_IN')}
               </button>
               <button onClick={() => updateStage('WEIGHING')} style={styles.demoBtn}>
-                ⚖️ Weighing Done
+                {t('trackBooking.demoButtons.WEIGHING')}
               </button>
               <button onClick={() => updateStage('QUALITY_CHECK')} style={styles.demoBtn}>
-                🔍 Quality Check
+                {t('trackBooking.demoButtons.QUALITY_CHECK')}
               </button>
               <button onClick={() => updateStage('BILL_GENERATED')} style={styles.demoBtn}>
-                📄 Generate Bill
+                {t('trackBooking.demoButtons.BILL_GENERATED')}
               </button>
               <button onClick={() => updateStage('PAYMENT_INITIATED')} style={styles.demoBtn}>
-                💰 Initiate Payment
+                {t('trackBooking.demoButtons.PAYMENT_INITIATED')}
               </button>
               <button onClick={() => updateStage('PAYMENT_CREDITED')} style={styles.demoBtn}>
-                🏦 Payment Credited
+                {t('trackBooking.demoButtons.PAYMENT_CREDITED')}
               </button>
             </div>
           </div>

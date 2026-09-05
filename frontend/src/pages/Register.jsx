@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../services/api';
 import { saveSession, isLoggedIn } from '../services/auth';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageSelector from '../components/LanguageSelector';
 
 const Register = () => {
   const navigate = useNavigate();
+  const { t } = useLanguage();
   const [formData, setFormData] = useState({
     aadharNumber: '',
     fullName: '',
@@ -50,7 +53,7 @@ const Register = () => {
       const status = err.response?.status;
       const targetUrl = (err.config?.baseURL || '') + (err.config?.url || '');
       if (msg === 'Farmer already registered') {
-        setError('You are already registered. Please go to Login instead.');
+        setError(t('auth.alreadyRegisteredErr'));
       } else {
         setError(msg || `${err.message || 'Registration failed'} (URL: ${targetUrl || 'unknown'}, Status: ${status || 'Network Error'})`);
       }
@@ -62,10 +65,14 @@ const Register = () => {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '15px' }}>
+          <LanguageSelector variant="light" />
+        </div>
+
         <div style={styles.header}>
           <span style={styles.logo}>🌾</span>
-          <h1 style={styles.title}>Farmer Registration</h1>
-          <p style={styles.subtitle}>Join KisanFlow Platform</p>
+          <h1 style={styles.title}>{t('auth.registerTitle')}</h1>
+          <p style={styles.subtitle}>{t('auth.registerSubtitle')}</p>
         </div>
 
         {error && <div style={styles.error}>{error}</div>}
@@ -73,71 +80,75 @@ const Register = () => {
         <form onSubmit={handleSubmit}>
           <div style={styles.row}>
             <div style={styles.col}>
-              <label style={styles.label}>Full Name *</label>
+              <label style={styles.label}>{t('auth.fullName')}</label>
               <input type="text" name="fullName" onChange={handleChange} style={styles.input} required />
             </div>
             <div style={styles.col}>
-              <label style={styles.label}>Aadhaar Number *</label>
+              <label style={styles.label}>{t('auth.aadharNumber')}</label>
               <input type="text" name="aadharNumber" onChange={handleChange} style={styles.input} maxLength="12" required />
             </div>
           </div>
 
           <div style={styles.row}>
             <div style={styles.col}>
-              <label style={styles.label}>Phone Number *</label>
+              <label style={styles.label}>{t('auth.phoneNumberReq')}</label>
               <input type="tel" name="phoneNumber" onChange={handleChange} style={styles.input} maxLength="10" required />
             </div>
             <div style={styles.col}>
-              <label style={styles.label}>Village</label>
+              <label style={styles.label}>{t('auth.village')}</label>
               <input type="text" name="village" onChange={handleChange} style={styles.input} />
             </div>
           </div>
 
           <div style={styles.row}>
             <div style={styles.col}>
-              <label style={styles.label}>District</label>
+              <label style={styles.label}>{t('auth.district')}</label>
               <input type="text" name="district" onChange={handleChange} style={styles.input} />
             </div>
             <div style={styles.col}>
-              <label style={styles.label}>State</label>
-              <select name="state" onChange={handleChange} style={styles.input}>
-                <option value="Punjab">Punjab</option>
-                <option value="Haryana">Haryana</option>
-                <option value="UP">Uttar Pradesh</option>
-                <option value="MP">Madhya Pradesh</option>
+              <label style={styles.label}>{t('auth.state')}</label>
+              <select name="state" value={formData.state} onChange={handleChange} style={styles.input}>
+                <option value="Punjab">{t('auth.states.Punjab')}</option>
+                <option value="Haryana">{t('auth.states.Haryana')}</option>
+                <option value="UP">{t('auth.states.UP')}</option>
+                <option value="MP">{t('auth.states.MP')}</option>
+                <option value="WB">{t('auth.states.WB')}</option>
               </select>
             </div>
           </div>
 
           <div style={styles.row}>
             <div style={styles.col}>
-              <label style={styles.label}>Bank Account Number</label>
+              <label style={styles.label}>{t('auth.bankAccount')}</label>
               <input type="text" name="bankAccount" onChange={handleChange} style={styles.input} />
             </div>
             <div style={styles.col}>
-              <label style={styles.label}>IFSC Code</label>
+              <label style={styles.label}>{t('auth.bankIfsc')}</label>
               <input type="text" name="bankIfsc" onChange={handleChange} style={styles.input} />
             </div>
           </div>
 
           <div style={styles.row}>
             <div style={styles.col}>
-              <label style={styles.label}>Land Area (Acres)</label>
+              <label style={styles.label}>{t('auth.landArea')}</label>
               <input type="number" name="landArea" onChange={handleChange} style={styles.input} step="0.1" />
             </div>
             <div style={styles.col}>
-              <label style={styles.label}>Password *</label>
+              <label style={styles.label}>{t('auth.passwordReq')}</label>
               <input type="password" name="password" onChange={handleChange} style={styles.input} required minLength="6" />
             </div>
           </div>
 
           <button type="submit" style={styles.button} disabled={loading}>
-            {loading ? 'Registering...' : 'Register'}
+            {loading ? t('auth.registering') : t('auth.registerBtn')}
           </button>
         </form>
 
         <p style={styles.footer}>
-          Already registered? <Link to="/login">Login here</Link>
+          {t('auth.alreadyRegistered')}{' '}
+          <Link to="/login" style={{ color: '#667eea', fontWeight: 'bold' }}>
+            {t('auth.loginHere')}
+          </Link>
         </p>
       </div>
     </div>

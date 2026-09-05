@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageSelector from '../components/LanguageSelector';
 
 const PaymentHistory = () => {
   const navigate = useNavigate();
+  const { t, tCrop, tStatus } = useLanguage();
   const [payments] = useState([
     {
       id: 1,
@@ -55,24 +58,27 @@ const PaymentHistory = () => {
   return (
     <div style={styles.container}>
       <div style={styles.header}>
-        <button onClick={() => navigate('/farmer/dashboard')} style={styles.backBtn}>
-          ← Back
-        </button>
-        <h1 style={styles.title}>💳 Payment History</h1>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <button onClick={() => navigate('/farmer/dashboard')} style={styles.backBtn}>
+            {t('common.back')}
+          </button>
+          <h1 style={styles.title}>{t('paymentHistory.title')}</h1>
+        </div>
+        <LanguageSelector variant="light" />
       </div>
 
       {/* Summary Cards */}
       <div style={styles.summaryRow}>
         <div style={styles.summaryCard}>
-          <h3>Total Earnings</h3>
+          <h3>{t('paymentHistory.totalEarnings')}</h3>
           <p style={styles.summaryAmount}>₹{totalEarnings.toLocaleString('en-IN')}</p>
         </div>
         <div style={styles.summaryCard}>
-          <h3>Total Transactions</h3>
+          <h3>{t('paymentHistory.totalTransactions')}</h3>
           <p style={styles.summaryAmount}>{payments.length}</p>
         </div>
         <div style={styles.summaryCard}>
-          <h3>Pending Payments</h3>
+          <h3>{t('paymentHistory.pendingPayments')}</h3>
           <p style={styles.summaryAmount}>
             {payments.filter(p => p.status === 'PROCESSING').length}
           </p>
@@ -86,35 +92,37 @@ const PaymentHistory = () => {
             <div style={styles.paymentHeader}>
               <div>
                 <h3 style={styles.billNumber}>{payment.billNumber}</h3>
-                <p style={styles.cropName}>{payment.cropName} - {payment.quantity} quintals</p>
+                <p style={styles.cropName}>
+                  {tCrop(payment.cropName)} - {payment.quantity} {t('common.quintals')}
+                </p>
               </div>
               <div style={{
                 ...styles.statusBadge,
                 background: getStatusColor(payment.status) + '20',
                 color: getStatusColor(payment.status),
               }}>
-                {payment.status}
+                {tStatus(payment.status)}
               </div>
             </div>
 
             <div style={styles.paymentDetails}>
               <div style={styles.detailRow}>
-                <span>Amount:</span>
+                <span>{t('paymentHistory.amount')}</span>
                 <strong>₹{payment.amount.toLocaleString('en-IN')}</strong>
               </div>
               <div style={styles.detailRow}>
-                <span>Initiated:</span>
+                <span>{t('paymentHistory.initiated')}</span>
                 <strong>{payment.initiatedDate}</strong>
               </div>
               {payment.creditedDate && (
                 <div style={styles.detailRow}>
-                  <span>Credited:</span>
+                  <span>{t('paymentHistory.credited')}</span>
                   <strong>{payment.creditedDate}</strong>
                 </div>
               )}
               {payment.utrNumber && (
                 <div style={styles.detailRow}>
-                  <span>UTR Number:</span>
+                  <span>{t('paymentHistory.utrNumber')}</span>
                   <strong>{payment.utrNumber}</strong>
                 </div>
               )}
@@ -154,9 +162,9 @@ const PaymentHistory = () => {
                 </div>
               </div>
               <div style={styles.progressLabels}>
-                <span>Initiated</span>
-                <span>Processing</span>
-                <span>Credited</span>
+                <span>{t('paymentHistory.steps.initiated')}</span>
+                <span>{t('paymentHistory.steps.processing')}</span>
+                <span>{t('paymentHistory.steps.credited')}</span>
               </div>
             </div>
           </div>

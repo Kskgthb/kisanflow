@@ -2,9 +2,12 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { bookingService } from '../services/api';
 import { getSession } from '../services/auth';
+import { useLanguage } from '../context/LanguageContext';
+import LanguageSelector from '../components/LanguageSelector';
 
 const BookSlot = () => {
   const navigate = useNavigate();
+  const { t, tCrop } = useLanguage();
   const [centres, setCentres] = useState([]);
   const [crops] = useState([
     { id: 1, name: 'Wheat', msp: 2275 },
@@ -91,30 +94,34 @@ const BookSlot = () => {
     return (
       <div style={styles.container}>
         <div style={styles.card}>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '10px' }}>
+            <LanguageSelector variant="light" />
+          </div>
+
           <div style={{ textAlign: 'center', marginBottom: '20px' }}>
             <span style={{ fontSize: '60px' }}>🎉</span>
-            <h2 style={{ color: '#2e7d32', margin: '10px 0 5px' }}>Slot Booked Successfully!</h2>
+            <h2 style={{ color: '#2e7d32', margin: '10px 0 5px' }}>{t('bookSlot.successTitle')}</h2>
             <p style={{ color: '#666', fontSize: '14px', margin: 0 }}>
-              Aapka slot book ho gaya hai aur SMS bheja ja chuka hai.
+              {t('bookSlot.successSubtitle')}
             </p>
           </div>
 
           <div style={styles.tokenBox}>
-            <div style={{ fontSize: '13px', color: '#667eea', fontWeight: 'bold' }}>TOKEN NUMBER</div>
+            <div style={{ fontSize: '13px', color: '#667eea', fontWeight: 'bold' }}>{t('bookSlot.tokenNumber')}</div>
             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1a237e', margin: '6px 0' }}>
               {bookingSuccess.tokenNumber}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '12px' }}>
               <div>
-                <span style={{ fontSize: '12px', color: '#777' }}>Queue Position</span>
+                <span style={{ fontSize: '12px', color: '#777' }}>{t('bookSlot.queuePosition')}</span>
                 <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#d84315' }}>
                   #{bookingSuccess.queuePosition || 1}
                 </div>
               </div>
               <div style={{ borderLeft: '1px solid #ddd', paddingLeft: '20px' }}>
-                <span style={{ fontSize: '12px', color: '#777' }}>Estimated Wait</span>
+                <span style={{ fontSize: '12px', color: '#777' }}>{t('bookSlot.estimatedWait')}</span>
                 <div style={{ fontSize: '18px', fontWeight: 'bold', color: '#0277bd' }}>
-                  ~{bookingSuccess.estimatedWaitMinutes || 10} Mins
+                  ~{bookingSuccess.estimatedWaitMinutes || 10} {t('common.mins')}
                 </div>
               </div>
             </div>
@@ -126,7 +133,7 @@ const BookSlot = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '20px' }}>📱</span>
                 <strong style={{ color: '#1565c0', fontSize: '14px' }}>
-                  SMS Sent to {bookingSuccess.smsPhone ? `+91 ${bookingSuccess.smsPhone}` : 'Registered Mobile'}
+                  {t('bookSlot.smsSentTo', { phone: bookingSuccess.smsPhone ? `+91 ${bookingSuccess.smsPhone}` : 'Registered Mobile' })}
                 </strong>
               </div>
             </div>
@@ -141,13 +148,13 @@ const BookSlot = () => {
                 rel="noreferrer"
                 style={styles.whatsappBtn}
               >
-                💬 Open WhatsApp
+                {t('bookSlot.openWhatsApp')}
               </a>
               <a
                 href={`sms:+91${bookingSuccess.smsPhone || ''}?body=${encodeURIComponent(bookingSuccess.smsMessage || '')}`}
                 style={styles.phoneSmsBtn}
               >
-                ✉️ Open SMS App
+                {t('bookSlot.openSms')}
               </a>
             </div>
           </div>
@@ -157,13 +164,13 @@ const BookSlot = () => {
               onClick={() => navigate(`/farmer/track/${bookingSuccess.booking?.id}`)}
               style={styles.trackBtn}
             >
-              📊 Live Track Queue
+              {t('bookSlot.liveTrackQueue')}
             </button>
             <button
               onClick={() => navigate('/farmer/dashboard')}
               style={styles.dashboardBtn}
             >
-              Dashboard
+              {t('bookSlot.backToDashboard')}
             </button>
           </div>
         </div>
@@ -174,15 +181,18 @@ const BookSlot = () => {
   return (
     <div style={styles.container}>
       <div style={styles.card}>
-        <button onClick={() => navigate('/farmer/dashboard')} style={styles.backBtn}>
-          ← Back to Dashboard
-        </button>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+          <button onClick={() => navigate('/farmer/dashboard')} style={styles.backBtn}>
+            {t('common.backToDashboard')}
+          </button>
+          <LanguageSelector variant="light" />
+        </div>
 
-        <h1 style={styles.title}>📅 Book Procurement Slot</h1>
+        <h1 style={styles.title}>{t('bookSlot.title')}</h1>
 
         <form onSubmit={handleSubmit}>
           <div style={styles.formGroup}>
-            <label style={styles.label}>Select Procurement Centre (Mandi Samiti) *</label>
+            <label style={styles.label}>{t('bookSlot.selectCentre')}</label>
             <select
               name="centreId"
               value={formData.centreId}
@@ -190,7 +200,7 @@ const BookSlot = () => {
               style={styles.input}
               required
             >
-              <option value="">-- Select Mandi Centre --</option>
+              <option value="">{t('bookSlot.selectCentrePlaceholder')}</option>
               {centres.map((centre) => (
                 <option key={centre.id} value={centre.id}>
                   {centre.name} - {centre.district}
@@ -200,7 +210,7 @@ const BookSlot = () => {
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>Select Crop *</label>
+            <label style={styles.label}>{t('bookSlot.selectCrop')}</label>
             <select
               name="cropId"
               value={formData.cropId}
@@ -208,17 +218,17 @@ const BookSlot = () => {
               style={styles.input}
               required
             >
-              <option value="">-- Select Crop --</option>
+              <option value="">{t('bookSlot.selectCropPlaceholder')}</option>
               {crops.map((crop) => (
                 <option key={crop.id} value={crop.id}>
-                  {crop.name} (MSP: ₹{crop.msp}/quintal)
+                  {tCrop(crop.name)} ({t('bookSlot.mspPrefix', { msp: crop.msp })})
                 </option>
               ))}
             </select>
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>Select Date *</label>
+            <label style={styles.label}>{t('bookSlot.selectDate')}</label>
             <input
               type="date"
               name="bookingDate"
@@ -232,7 +242,7 @@ const BookSlot = () => {
 
           {slots.length > 0 && (
             <div style={styles.formGroup}>
-              <label style={styles.label}>Available Time Slots *</label>
+              <label style={styles.label}>{t('bookSlot.availableSlots')}</label>
               <div style={styles.slotGrid}>
                 {slots.map((slot) => (
                   <button
@@ -258,7 +268,7 @@ const BookSlot = () => {
           )}
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>Estimated Quantity (Quintals) *</label>
+            <label style={styles.label}>{t('bookSlot.quantityLabel')}</label>
             <input
               type="number"
               name="quantity"
@@ -267,13 +277,13 @@ const BookSlot = () => {
               style={styles.input}
               min="1"
               max="100"
-              placeholder="e.g. 20"
+              placeholder={t('bookSlot.quantityPlaceholder')}
               required
             />
           </div>
 
           <button type="submit" style={styles.submitBtn} disabled={loading || !formData.slotTime}>
-            {loading ? 'Booking Slot & Sending SMS...' : 'Confirm Slot & Get SMS'}
+            {loading ? t('bookSlot.submittingBtn') : t('bookSlot.submitBtn')}
           </button>
         </form>
       </div>
