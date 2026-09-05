@@ -13,6 +13,10 @@ api.interceptors.request.use((config) => {
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+  // Prevent aggressive browser / CDN caching on GET requests
+  if (config.method === 'get') {
+    config.params = { ...config.params, _t: Date.now() };
+  }
   return config;
 });
 
@@ -27,7 +31,14 @@ export const bookingService = {
   createBooking: (data) => api.post('/bookings', data),
   getFarmerBookings: (farmerId) => api.get(`/bookings/farmer/${farmerId}`),
   getBookingById: (id) => api.get(`/bookings/${id}`),
-  updateBookingStatus: (id, status) => api.patch(`/bookings/${id}/status`, { status }),
+  updateBookingStatus: async (id, status) => {
+    try {
+      return await api.patch(`/bookings/${id}/status`, { status });
+    } catch (err) {
+      // Fallback to POST in case PATCH is blocked in some proxy environments
+      return await api.post(`/bookings/${id}/status`, { status });
+    }
+  },
 };
 
 export const paymentService = {

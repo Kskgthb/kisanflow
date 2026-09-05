@@ -16,6 +16,7 @@ router.post('/bookings', authMiddleware, bookingController.createBooking);
 router.get('/bookings/farmer/:farmerId', authMiddleware, bookingController.getFarmerBookings);
 router.get('/bookings/:id', bookingController.getBookingById);
 router.patch('/bookings/:id/status', bookingController.updateBookingStatus);
+router.post('/bookings/:id/status', bookingController.updateBookingStatus);
 
 // Payments
 router.get('/payments/farmer/:farmerId', bookingController.getFarmerPayments);
