@@ -85,33 +85,35 @@ const TrackBooking = () => {
   }, [bookingId]);
 
   const updateStage = async (stageKey) => {
+    if (updating) return;
     setUpdating(true);
-    setStatusMsg(t('trackBooking.statusUpdating'));
 
     const targetDbStatus = stageKey === 'PAYMENT_CREDITED' ? 'COMPLETED' : stageKey;
 
+    // ✅ Optimistic update: immediately reflect in UI so user sees the change right away
+    syncStagesWithStatus(stageKey);
+    setBooking((prev) => (prev ? { ...prev, status: targetDbStatus } : prev));
+    setStatusMsg(t('trackBooking.statusUpdating'));
+
+    // Send update to backend (non-blocking for UI)
     try {
       await bookingService.updateBookingStatus(bookingId, targetDbStatus);
     } catch (err) {
-      console.warn('Backend status update request note:', err.message);
+      console.warn('Backend status update note:', err.message);
     }
 
-    // Re-fetch from backend to confirm all tables (slot_bookings, procurement_records, payments) got updated
+    // Re-fetch from backend in background to confirm and get payment details
     try {
       const response = await bookingService.getBookingById(bookingId);
       if (response.data?.booking) {
         const data = response.data.booking;
+        // Reconcile: backend status overrides optimistic if different
         setBooking(data);
-        syncStagesWithStatus(data.status || targetDbStatus);
-      } else {
-        // Fallback to local update if re-fetch doesn't return data
-        syncStagesWithStatus(stageKey);
-        setBooking((prev) => (prev ? { ...prev, status: targetDbStatus } : prev));
+        syncStagesWithStatus(data.status === 'COMPLETED' ? 'PAYMENT_CREDITED' : (data.status || stageKey));
       }
     } catch (err) {
-      // Fallback to local update
-      syncStagesWithStatus(stageKey);
-      setBooking((prev) => (prev ? { ...prev, status: targetDbStatus } : prev));
+      // UI already updated optimistically — no further action needed
+      console.warn('Re-fetch note:', err.message);
     }
 
     setUpdating(false);
