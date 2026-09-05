@@ -26,6 +26,12 @@ export const bookingService = {
   getSlots: (centreId, date) => api.get(`/centres/${centreId}/slots/${date}`),
   createBooking: (data) => api.post('/bookings', data),
   getFarmerBookings: (farmerId) => api.get(`/bookings/farmer/${farmerId}`),
+  getBookingById: (id) => api.get(`/bookings/${id}`),
+  updateBookingStatus: (id, status) => api.patch(`/bookings/${id}/status`, { status }),
+};
+
+export const paymentService = {
+  getFarmerPayments: (farmerId) => api.get(`/payments/farmer/${farmerId}`),
 };
 
 export default api;

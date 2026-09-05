@@ -1,12 +1,14 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import { paymentService } from '../services/api';
+import { getSession } from '../services/auth';
 import LanguageSelector from '../components/LanguageSelector';
 
 const PaymentHistory = () => {
   const navigate = useNavigate();
   const { t, tCrop, tStatus } = useLanguage();
-  const [payments] = useState([
+  const [payments, setPayments] = useState([
     {
       id: 1,
       billNumber: 'BILL-20260315-001',
@@ -41,6 +43,29 @@ const PaymentHistory = () => {
       utrNumber: 'UTR987654321',
     },
   ]);
+
+  useEffect(() => {
+    const session = getSession();
+    if (session?.farmer?.id) {
+      paymentService.getFarmerPayments(session.farmer.id)
+        .then((res) => {
+          if (res.data?.payments && res.data.payments.length > 0) {
+            setPayments(
+              res.data.payments.map((p) => ({
+                ...p,
+                amount: parseFloat(p.amount) || 0,
+                quantity: parseFloat(p.quantity) || 0,
+                initiatedDate: p.initiatedDate ? new Date(p.initiatedDate).toISOString().slice(0, 10) : '',
+                creditedDate: p.creditedDate ? new Date(p.creditedDate).toISOString().slice(0, 10) : null,
+              }))
+            );
+          }
+        })
+        .catch((err) => {
+          console.warn('Live payments fetch fallback:', err.message);
+        });
+    }
+  }, []);
 
   const getStatusColor = (status) => {
     switch (status) {

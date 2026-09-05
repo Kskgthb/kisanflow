@@ -14,6 +14,11 @@ router.get('/centres', bookingController.getCentres);
 router.get('/centres/:centreId/slots/:date', bookingController.getAvailableSlots);
 router.post('/bookings', authMiddleware, bookingController.createBooking);
 router.get('/bookings/farmer/:farmerId', authMiddleware, bookingController.getFarmerBookings);
+router.get('/bookings/:id', bookingController.getBookingById);
+router.patch('/bookings/:id/status', bookingController.updateBookingStatus);
+
+// Payments
+router.get('/payments/farmer/:farmerId', bookingController.getFarmerPayments);
 
 // Diagnostic SMS test endpoint
 router.get('/test-sms/:phone', async (req, res) => {

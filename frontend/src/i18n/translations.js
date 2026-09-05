@@ -129,6 +129,10 @@ export const translations = {
         PAYMENT_INITIATED: '💰 Initiate Payment',
         PAYMENT_CREDITED: '🏦 Payment Credited',
       },
+      statusUpdating: 'Updating status in database...',
+      stageUpdated: 'Stage updated: {stage}',
+      bookingCompletedNotice: '🎉 Congratulations! This procurement booking is COMPLETED. Payment has been credited.',
+      viewPaymentBtn: '💳 View Payment History',
     },
     paymentHistory: {
       title: '💳 Payment History',
@@ -299,6 +303,10 @@ export const translations = {
         PAYMENT_INITIATED: '💰 भुगतान शुरू करें',
         PAYMENT_CREDITED: '🏦 भुगतान जमा हुआ',
       },
+      statusUpdating: 'डेटाबेस में स्थिति अपडेट हो रही है...',
+      stageUpdated: 'चरण अपडेट किया गया: {stage}',
+      bookingCompletedNotice: '🎉 बधाई! यह खरीद प्रक्रिया पूर्ण (COMPLETED) हो चुकी है। भुगतान खाते में जमा हो गया है।',
+      viewPaymentBtn: '💳 भुगतान इतिहास देखें',
     },
     paymentHistory: {
       title: '💳 भुगतान इतिहास',
@@ -469,6 +477,10 @@ export const translations = {
         PAYMENT_INITIATED: '💰 পেমেন্ট শুরু করুন',
         PAYMENT_CREDITED: '🏦 অ্যাকাউন্টে টাকা পাঠান',
       },
+      statusUpdating: 'ডাটাবেসে স্ট্যাটাস আপডেট হচ্ছে...',
+      stageUpdated: 'ধাপ আপডেট করা হয়েছে: {stage}',
+      bookingCompletedNotice: '🎉 অভিনন্দন! এই ফসল সংগ্রহ সম্পন্ন (COMPLETED) হয়েছে। পেমেন্ট অ্যাকাউন্টে জমা হয়েছে।',
+      viewPaymentBtn: '💳 পেমেন্ট ইতিহাস দেখুন',
     },
     paymentHistory: {
       title: '💳 পেমেন্ট ইতিহাস',

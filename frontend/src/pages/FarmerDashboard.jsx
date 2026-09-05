@@ -103,7 +103,7 @@ const FarmerDashboard = () => {
         <div style={styles.statCard}>
           <h3>{t('dashboard.upcomingBookings')}</h3>
           <p style={styles.statNumber}>
-            {bookings.filter(b => b.status === 'BOOKED').length}
+            {bookings.filter(b => b.status !== 'COMPLETED' && b.status !== 'CANCELLED').length}
           </p>
         </div>
         <div style={styles.statCard}>

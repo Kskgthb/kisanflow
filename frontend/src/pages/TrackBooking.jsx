@@ -1,13 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
+import { bookingService } from '../services/api';
 import LanguageSelector from '../components/LanguageSelector';
+
+const STAGE_KEYS = [
+  'BOOKED',
+  'CHECKED_IN',
+  'WEIGHING',
+  'QUALITY_CHECK',
+  'BILL_GENERATED',
+  'PAYMENT_INITIATED',
+  'PAYMENT_CREDITED',
+];
 
 const TrackBooking = () => {
   const { bookingId } = useParams();
   const navigate = useNavigate();
   const { t, tCrop, tStatus } = useLanguage();
   const [booking, setBooking] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [updating, setUpdating] = useState(false);
+  const [statusMsg, setStatusMsg] = useState('');
   const [procurementStatus, setProcurementStatus] = useState({
     currentStage: 'BOOKED',
     stages: [
@@ -18,35 +32,79 @@ const TrackBooking = () => {
       { key: 'BILL_GENERATED', icon: '📄', completed: false },
       { key: 'PAYMENT_INITIATED', icon: '💰', completed: false },
       { key: 'PAYMENT_CREDITED', icon: '🏦', completed: false },
-    ]
+    ],
   });
 
+  const syncStagesWithStatus = (statusCode) => {
+    const norm = statusCode === 'COMPLETED' ? 'PAYMENT_CREDITED' : statusCode;
+    const stageIdx = STAGE_KEYS.indexOf(norm);
+    const targetIdx = stageIdx >= 0 ? stageIdx : 0;
+
+    setProcurementStatus((prev) => ({
+      currentStage: norm,
+      stages: prev.stages.map((stage, idx) => ({
+        ...stage,
+        completed: idx <= targetIdx,
+      })),
+    }));
+  };
+
   useEffect(() => {
-    // Demo data - actual API se fetch karna hoga
-    const demoBooking = {
-      id: bookingId,
-      tokenNumber: `KISAN-${new Date().toISOString().slice(0,10).replace(/-/g,'')}-001`,
-      cropName: 'Wheat',
-      quantity: '5.5',
-      centreName: 'Mandi Samiti Ludhiana',
-      bookingDate: new Date().toISOString().slice(0,10),
-      slotTime: '10:00',
-      status: 'IN_PROGRESS',
-      queuePosition: 3,
-      estimatedWait: 25,
+    const fetchBooking = async () => {
+      setLoading(true);
+      try {
+        const response = await bookingService.getBookingById(bookingId);
+        if (response.data?.booking) {
+          const data = response.data.booking;
+          setBooking(data);
+          syncStagesWithStatus(data.status || 'BOOKED');
+        }
+      } catch (err) {
+        console.warn('Live booking fetch failed, using fallback:', err.message);
+        // Fallback demo data
+        const demoBooking = {
+          id: bookingId,
+          tokenNumber: `KISAN-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-001`,
+          cropName: 'Wheat',
+          quantity: '5.5',
+          centreName: 'Mandi Samiti Ludhiana',
+          bookingDate: new Date().toISOString().slice(0, 10),
+          slotTime: '10:00',
+          status: 'BOOKED',
+          queuePosition: 1,
+          estimatedWait: 10,
+        };
+        setBooking(demoBooking);
+        syncStagesWithStatus('BOOKED');
+      } finally {
+        setLoading(false);
+      }
     };
-    setBooking(demoBooking);
+
+    fetchBooking();
   }, [bookingId]);
 
-  const updateStage = (stageKey) => {
-    setProcurementStatus(prev => {
-      const stages = prev.stages.map(stage => ({
-        ...stage,
-        completed: stage.key === stageKey ? true : stage.completed
-      }));
-      return { ...prev, currentStage: stageKey, stages };
-    });
+  const updateStage = async (stageKey) => {
+    setUpdating(true);
+    setStatusMsg(t('trackBooking.statusUpdating'));
+
+    const targetDbStatus = stageKey === 'PAYMENT_CREDITED' ? 'COMPLETED' : stageKey;
+
+    try {
+      await bookingService.updateBookingStatus(bookingId, targetDbStatus);
+    } catch (err) {
+      console.warn('Backend status update request note:', err.message);
+    } finally {
+      // Always update local view
+      syncStagesWithStatus(stageKey);
+      setBooking((prev) => (prev ? { ...prev, status: targetDbStatus } : prev));
+      setUpdating(false);
+      setStatusMsg(t('trackBooking.stageUpdated', { stage: t(`trackBooking.stages.${stageKey}`) }));
+      setTimeout(() => setStatusMsg(''), 4000);
+    }
   };
+
+  const isCompleted = booking?.status === 'COMPLETED';
 
   return (
     <div style={styles.container}>
@@ -61,7 +119,66 @@ const TrackBooking = () => {
         <LanguageSelector variant="light" />
       </div>
 
-      {booking && (
+      {statusMsg && (
+        <div style={{
+          background: '#e8f5e9',
+          border: '1px solid #a5d6a7',
+          color: '#2e7d32',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          marginBottom: '20px',
+          fontWeight: '600',
+          textAlign: 'center',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
+        }}>
+          {statusMsg}
+        </div>
+      )}
+
+      {isCompleted && (
+        <div style={{
+          background: 'linear-gradient(135deg, #2e7d32 0%, #43a047 100%)',
+          color: 'white',
+          padding: '18px 24px',
+          borderRadius: '12px',
+          marginBottom: '20px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          boxShadow: '0 4px 15px rgba(46, 125, 50, 0.25)',
+        }}>
+          <div>
+            <h3 style={{ margin: '0 0 4px 0', fontSize: '18px' }}>
+              {t('trackBooking.bookingCompletedNotice')}
+            </h3>
+            <p style={{ margin: 0, opacity: 0.9, fontSize: '14px' }}>
+              {t('statuses.COMPLETED')}
+            </p>
+          </div>
+          <button
+            onClick={() => navigate('/farmer/payments')}
+            style={{
+              padding: '10px 18px',
+              background: 'white',
+              color: '#2e7d32',
+              border: 'none',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: '14px',
+              boxShadow: '0 2px 6px rgba(0,0,0,0.15)',
+            }}
+          >
+            {t('trackBooking.viewPaymentBtn')}
+          </button>
+        </div>
+      )}
+
+      {loading ? (
+        <div style={{ textAlign: 'center', padding: '60px', color: '#666' }}>
+          <p style={{ fontSize: '20px' }}>⏳ {t('common.loading')}</p>
+        </div>
+      ) : booking && (
         <>
           {/* Booking Info Card */}
           <div style={styles.infoCard}>
@@ -103,7 +220,9 @@ const TrackBooking = () => {
               </div>
               <div>
                 <p>{t('trackBooking.currentStatus')}</p>
-                <h2 style={{color: '#ff9800'}}>{tStatus(booking.status)}</h2>
+                <h2 style={{ color: isCompleted ? '#2e7d32' : '#ff9800' }}>
+                  {tStatus(booking.status)}
+                </h2>
               </div>
             </div>
           </div>
@@ -142,27 +261,42 @@ const TrackBooking = () => {
             </div>
           </div>
 
-          {/* Demo Controls - Staff ke liye (Remove in production) */}
+          {/* Demo Controls - Staff ke liye */}
           <div style={styles.demoControls}>
-            <h3>{t('trackBooking.demoTitle')}</h3>
-            <p>{t('trackBooking.demoSubtitle')}</p>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ margin: 0 }}>{t('trackBooking.demoTitle')}</h3>
+                <p style={{ margin: '4px 0 0', color: '#666' }}>{t('trackBooking.demoSubtitle')}</p>
+              </div>
+              {updating && <span style={{ color: '#ff9800', fontWeight: 'bold' }}>⏳ {t('trackBooking.statusUpdating')}</span>}
+            </div>
             <div style={styles.buttonGroup}>
-              <button onClick={() => updateStage('CHECKED_IN')} style={styles.demoBtn}>
+              <button onClick={() => updateStage('CHECKED_IN')} style={styles.demoBtn} disabled={updating}>
                 {t('trackBooking.demoButtons.CHECKED_IN')}
               </button>
-              <button onClick={() => updateStage('WEIGHING')} style={styles.demoBtn}>
+              <button onClick={() => updateStage('WEIGHING')} style={styles.demoBtn} disabled={updating}>
                 {t('trackBooking.demoButtons.WEIGHING')}
               </button>
-              <button onClick={() => updateStage('QUALITY_CHECK')} style={styles.demoBtn}>
+              <button onClick={() => updateStage('QUALITY_CHECK')} style={styles.demoBtn} disabled={updating}>
                 {t('trackBooking.demoButtons.QUALITY_CHECK')}
               </button>
-              <button onClick={() => updateStage('BILL_GENERATED')} style={styles.demoBtn}>
+              <button onClick={() => updateStage('BILL_GENERATED')} style={styles.demoBtn} disabled={updating}>
                 {t('trackBooking.demoButtons.BILL_GENERATED')}
               </button>
-              <button onClick={() => updateStage('PAYMENT_INITIATED')} style={styles.demoBtn}>
+              <button onClick={() => updateStage('PAYMENT_INITIATED')} style={styles.demoBtn} disabled={updating}>
                 {t('trackBooking.demoButtons.PAYMENT_INITIATED')}
               </button>
-              <button onClick={() => updateStage('PAYMENT_CREDITED')} style={styles.demoBtn}>
+              <button 
+                onClick={() => updateStage('PAYMENT_CREDITED')} 
+                style={{
+                  ...styles.demoBtn,
+                  background: isCompleted ? '#2e7d32' : 'white',
+                  color: isCompleted ? 'white' : '#ff9800',
+                  borderColor: '#2e7d32',
+                  fontWeight: 'bold',
+                }} 
+                disabled={updating}
+              >
                 {t('trackBooking.demoButtons.PAYMENT_CREDITED')}
               </button>
             </div>
