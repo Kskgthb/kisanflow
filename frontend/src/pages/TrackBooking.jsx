@@ -90,30 +90,38 @@ const TrackBooking = () => {
 
     const targetDbStatus = stageKey === 'PAYMENT_CREDITED' ? 'COMPLETED' : stageKey;
 
-    // ✅ Optimistic update: immediately reflect in UI so user sees the change right away
+    // ✅ OPTIMISTIC: update UI instantly — this is the authoritative visual state
     syncStagesWithStatus(stageKey);
     setBooking((prev) => (prev ? { ...prev, status: targetDbStatus } : prev));
     setStatusMsg(t('trackBooking.statusUpdating'));
 
-    // Send update to backend (non-blocking for UI)
+    // Send update to backend
     try {
       await bookingService.updateBookingStatus(bookingId, targetDbStatus);
     } catch (err) {
       console.warn('Backend status update note:', err.message);
     }
 
-    // Re-fetch from backend in background to confirm and get payment details
-    try {
-      const response = await bookingService.getBookingById(bookingId);
-      if (response.data?.booking) {
-        const data = response.data.booking;
-        // Reconcile: backend status overrides optimistic if different
-        setBooking(data);
-        syncStagesWithStatus(data.status === 'COMPLETED' ? 'PAYMENT_CREDITED' : (data.status || stageKey));
+    // Re-fetch ONLY to get extra fields (bill number, UTR, amount) for completed bookings
+    // ⚠️ Never call syncStagesWithStatus here — it would reset the timeline with stale data
+    if (stageKey === 'PAYMENT_CREDITED') {
+      try {
+        const response = await bookingService.getBookingById(bookingId);
+        if (response.data?.booking) {
+          const data = response.data.booking;
+          // Merge only the payment detail fields, keep optimistic status/stages intact
+          setBooking((prev) => ({
+            ...prev,
+            billNumber: data.billNumber || prev?.billNumber,
+            paymentAmount: data.paymentAmount || prev?.paymentAmount,
+            utrNumber: data.utrNumber || prev?.utrNumber,
+            creditedDate: data.creditedDate || prev?.creditedDate,
+            paymentStatus: data.paymentStatus || prev?.paymentStatus,
+          }));
+        }
+      } catch (err) {
+        console.warn('Payment details re-fetch note:', err.message);
       }
-    } catch (err) {
-      // UI already updated optimistically — no further action needed
-      console.warn('Re-fetch note:', err.message);
     }
 
     setUpdating(false);
