@@ -156,11 +156,13 @@ exports.getBookingById = async (req, res) => {
     }
 
     const row = result.rows[0];
-    const queuePos = row.queue_position || 1;
-    const waitMins = Math.max(10, (queuePos - 1) * 15);
+    const isCompleted = row.status === 'COMPLETED' || row.payment_status === 'CREDITED';
+    const queuePos = isCompleted ? 0 : (row.queue_position || 1);
+    const waitMins = isCompleted ? 0 : Math.max(10, (queuePos - 1) * 15);
 
     const bookingData = {
       id: row.id,
+      farmerId: row.farmer_id,
       tokenNumber: row.token_number,
       cropName: row.crop_name,
       quantity: row.estimated_quantity_quintals,
@@ -228,18 +230,21 @@ exports.updateBookingStatus = async (req, res) => {
       [status, id]
     );
 
+    // Update live queue
     await db.query(
-      `UPDATE live_queue SET current_status = $1, last_updated = NOW() WHERE booking_id = $2`,
+      `UPDATE live_queue SET current_status = $1, queue_position = CASE WHEN $1 = 'COMPLETED' THEN 0 ELSE queue_position END, last_updated = NOW() WHERE booking_id = $2`,
       [status, id]
     );
 
-    // If completed, create procurement and payment records
-    if (status === 'COMPLETED') {
+    // If completed or billing/payment stages, create/update procurement and payment records
+    if (status === 'COMPLETED' || status === 'PAYMENT_INITIATED' || status === 'BILL_GENERATED') {
       const quantity = parseFloat(booking.estimated_quantity_quintals || 10);
       const msp = parseFloat(booking.msp_per_quintal || 2275);
       const totalAmount = (quantity * msp).toFixed(2);
       const billNumber = `BILL-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${String(id).padStart(3, '0')}`;
       const utrNumber = `UTR${Date.now().toString().slice(-9)}`;
+      const procStatus = status === 'COMPLETED' ? 'COMPLETED' : 'IN_PROGRESS';
+      const payStatus = status === 'COMPLETED' ? 'CREDITED' : 'INITIATED';
 
       const procRes = await db.query(
         `SELECT id FROM procurement_records WHERE booking_id = $1`,
@@ -250,22 +255,22 @@ exports.updateBookingStatus = async (req, res) => {
       if (procRes.rows.length > 0) {
         procurementId = procRes.rows[0].id;
         await db.query(
-          `UPDATE procurement_records SET status = 'COMPLETED' WHERE id = $1`,
-          [procurementId]
+          `UPDATE procurement_records SET status = $1, total_amount = $2 WHERE id = $3`,
+          [procStatus, totalAmount, procurementId]
         );
       } else {
         const insProc = await db.query(
           `INSERT INTO procurement_records 
            (booking_id, farmer_id, centre_id, crop_id, actual_quantity_quintals, quality_grade, total_amount, bill_number, status)
-           VALUES ($1, $2, $3, $4, $5, 'Grade A', $6, $7, 'COMPLETED')
+           VALUES ($1, $2, $3, $4, $5, 'Grade A', $6, $7, $8)
            RETURNING id`,
-          [id, booking.farmer_id, booking.centre_id, booking.crop_id, quantity, totalAmount, billNumber]
+          [id, booking.farmer_id, booking.centre_id, booking.crop_id, quantity, totalAmount, billNumber, procStatus]
         );
         procurementId = insProc.rows[0].id;
       }
 
       const payRes = await db.query(
-        `SELECT id FROM payments WHERE procurement_id = $1`,
+        `SELECT id, utr_number FROM payments WHERE procurement_id = $1`,
         [procurementId]
       );
 
@@ -273,8 +278,17 @@ exports.updateBookingStatus = async (req, res) => {
         await db.query(
           `INSERT INTO payments 
            (procurement_id, farmer_id, amount, payment_status, utr_number, initiated_date, credited_date)
-           VALUES ($1, $2, $3, 'CREDITED', $4, NOW(), NOW())`,
-          [procurementId, booking.farmer_id, totalAmount, utrNumber]
+           VALUES ($1, $2, $3, $4, $5, NOW(), ${status === 'COMPLETED' ? 'NOW()' : 'NULL'})`,
+          [procurementId, booking.farmer_id, totalAmount, payStatus, utrNumber]
+        );
+      } else if (status === 'COMPLETED') {
+        await db.query(
+          `UPDATE payments 
+           SET payment_status = 'CREDITED', 
+               utr_number = COALESCE(utr_number, $1), 
+               credited_date = COALESCE(credited_date, NOW())
+           WHERE id = $2`,
+          [utrNumber, payRes.rows[0].id]
         );
       }
     }

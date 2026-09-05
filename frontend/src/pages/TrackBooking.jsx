@@ -43,10 +43,12 @@ const TrackBooking = () => {
     const newIdx = stageIdx >= 0 ? stageIdx : 0;
 
     // Never go backwards unless explicitly allowed (e.g. initial load)
-    if (!allowRegress) {
+    if (allowRegress) {
+      highestStageRef.current = newIdx;
+    } else {
       highestStageRef.current = Math.max(highestStageRef.current, newIdx);
     }
-    const targetIdx = allowRegress ? newIdx : highestStageRef.current;
+    const targetIdx = highestStageRef.current;
 
     setProcurementStatus((prev) => ({
       currentStage: STAGE_KEYS[targetIdx],
@@ -98,9 +100,25 @@ const TrackBooking = () => {
 
     const targetDbStatus = stageKey === 'PAYMENT_CREDITED' ? 'COMPLETED' : stageKey;
 
-    // ✅ OPTIMISTIC: update UI instantly — this is the authoritative visual state
+    // ✅ OPTIMISTIC: update UI instantly — authoritative visual state
     syncStagesWithStatus(stageKey);
-    setBooking((prev) => (prev ? { ...prev, status: targetDbStatus } : prev));
+
+    const estimatedAmt = (parseFloat(booking?.quantity || 10) * 2275).toFixed(2);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const autoBill = booking?.billNumber || `BILL-${todayStr.replace(/-/g, '')}-${String(bookingId).padStart(3, '0')}`;
+    const autoUtr = booking?.utrNumber || `UTR${Date.now().toString().slice(-9)}`;
+
+    setBooking((prev) => (prev ? {
+      ...prev,
+      status: targetDbStatus,
+      queuePosition: targetDbStatus === 'COMPLETED' ? 0 : prev.queuePosition,
+      estimatedWait: targetDbStatus === 'COMPLETED' ? 0 : prev.estimatedWait,
+      paymentStatus: targetDbStatus === 'COMPLETED' ? 'CREDITED' : prev.paymentStatus,
+      paymentAmount: targetDbStatus === 'COMPLETED' ? (prev.paymentAmount || estimatedAmt) : prev.paymentAmount,
+      billNumber: targetDbStatus === 'COMPLETED' ? (prev.billNumber || autoBill) : prev.billNumber,
+      utrNumber: targetDbStatus === 'COMPLETED' ? (prev.utrNumber || autoUtr) : prev.utrNumber,
+      creditedDate: targetDbStatus === 'COMPLETED' ? (prev.creditedDate || todayStr) : prev.creditedDate,
+    } : prev));
     setStatusMsg(t('trackBooking.statusUpdating'));
 
     // Send update to backend
@@ -110,26 +128,20 @@ const TrackBooking = () => {
       console.warn('Backend status update note:', err.message);
     }
 
-    // Re-fetch ONLY to get extra fields (bill number, UTR, amount) for completed bookings
-    // ⚠️ Never call syncStagesWithStatus here — it would reset the timeline with stale data
-    if (stageKey === 'PAYMENT_CREDITED') {
-      try {
-        const response = await bookingService.getBookingById(bookingId);
-        if (response.data?.booking) {
-          const data = response.data.booking;
-          // Merge only the payment detail fields, keep optimistic status/stages intact
-          setBooking((prev) => ({
-            ...prev,
-            billNumber: data.billNumber || prev?.billNumber,
-            paymentAmount: data.paymentAmount || prev?.paymentAmount,
-            utrNumber: data.utrNumber || prev?.utrNumber,
-            creditedDate: data.creditedDate || prev?.creditedDate,
-            paymentStatus: data.paymentStatus || prev?.paymentStatus,
-          }));
-        }
-      } catch (err) {
-        console.warn('Payment details re-fetch note:', err.message);
+    // Re-fetch to get synced fields from backend
+    try {
+      const response = await bookingService.getBookingById(bookingId);
+      if (response.data?.booking) {
+        const data = response.data.booking;
+        setBooking((prev) => ({
+          ...prev,
+          ...data,
+          status: targetDbStatus === 'COMPLETED' ? 'COMPLETED' : (data.status || prev?.status),
+          paymentStatus: targetDbStatus === 'COMPLETED' ? 'CREDITED' : (data.paymentStatus || prev?.paymentStatus),
+        }));
       }
+    } catch (err) {
+      console.warn('Payment details re-fetch note:', err.message);
     }
 
     setUpdating(false);
@@ -137,7 +149,7 @@ const TrackBooking = () => {
     setTimeout(() => setStatusMsg(''), 4000);
   };
 
-  const isCompleted = booking?.status === 'COMPLETED';
+  const isCompleted = booking?.status === 'COMPLETED' || booking?.paymentStatus === 'CREDITED' || procurementStatus?.currentStage === 'PAYMENT_CREDITED';
 
   return (
     <div style={styles.container}>
@@ -281,16 +293,20 @@ const TrackBooking = () => {
             <div style={styles.queueInfo}>
               <div>
                 <p>{t('trackBooking.yourPosition')}</p>
-                <h2>#{booking.queuePosition}</h2>
+                <h2 style={{ color: isCompleted ? '#2e7d32' : '#333' }}>
+                  {isCompleted ? '✓ Done' : `#${booking.queuePosition || 1}`}
+                </h2>
               </div>
               <div>
                 <p>{t('trackBooking.estimatedWait')}</p>
-                <h2>{booking.estimatedWait} {t('common.mins')}</h2>
+                <h2 style={{ color: isCompleted ? '#2e7d32' : '#333' }}>
+                  {isCompleted ? `0 ${t('common.mins')}` : `${booking.estimatedWait || 10} ${t('common.mins')}`}
+                </h2>
               </div>
               <div>
                 <p>{t('trackBooking.currentStatus')}</p>
                 <h2 style={{ color: isCompleted ? '#2e7d32' : '#ff9800' }}>
-                  {tStatus(booking.status)}
+                  {isCompleted ? t('statuses.COMPLETED') : tStatus(booking.status)}
                 </h2>
               </div>
             </div>
