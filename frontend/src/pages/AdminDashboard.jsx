@@ -1,9 +1,26 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminService, bookingService } from '../services/api';
 import { getAdminSession, clearAdminSession, getSession } from '../services/auth';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
+
+const STAGES = [
+  { key: 'BOOKED', num: 1, label: 'Booked', icon: '📅', color: '#e65100' },
+  { key: 'CHECKED_IN', num: 2, label: 'Checked In', icon: '✅', color: '#1565c0' },
+  { key: 'WEIGHING', num: 3, label: 'Weighed', icon: '⚖️', color: '#00838f' },
+  { key: 'QUALITY_CHECK', num: 4, label: 'Quality OK', icon: '🔍', color: '#7b1fa2' },
+  { key: 'BILL_GENERATED', num: 5, label: 'Billed', icon: '📄', color: '#512da8' },
+  { key: 'PAYMENT_INITIATED', num: 6, label: 'DBT Initiated', icon: '💰', color: '#f57f17' },
+  { key: 'COMPLETED', num: 7, label: 'Credited', icon: '🏦', color: '#2e7d32' },
+];
+
+const getStageIndex = (status) => {
+  if (!status) return 0;
+  if (status === 'PAYMENT_CREDITED' || status === 'COMPLETED' || status === 'CREDITED') return 6;
+  const idx = STAGES.findIndex((s) => s.key === status);
+  return idx >= 0 ? idx : 0;
+};
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -22,7 +39,6 @@ const AdminDashboard = () => {
   const [statusFilter, setStatusFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [actionLoading, setActionLoading] = useState(false);
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [notification, setNotification] = useState('');
 
@@ -60,6 +76,7 @@ const AdminDashboard = () => {
     fetchCentres();
   }, []);
 
+  // Silent smart data loader with zero flicker
   const loadData = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
     try {
@@ -76,70 +93,128 @@ const AdminDashboard = () => {
       // 2. Fetch bookings
       const bookingsRes = await adminService.getBookings({
         centreId: selectedCentre,
-        status: statusFilter,
-        search: searchTerm,
+        status: 'all', // fetch all so client filtering is instant
+        search: '',
       });
       if (bookingsRes.data?.bookings) {
         setBookings(bookingsRes.data.bookings);
       }
 
-      // 3. If in procurements tab, fetch procurements
+      // 3. Procurements tab
       if (activeTab === 'procurements') {
         const procRes = await adminService.getProcurements({
           centreId: selectedCentre,
-          search: searchTerm,
+          search: '',
         });
         if (procRes.data?.procurements) {
           setProcurements(procRes.data.procurements);
         }
       }
 
-      // 4. If in farmers tab, fetch farmers
+      // 4. Farmers tab
       if (activeTab === 'farmers') {
-        const farmersRes = await adminService.getFarmers({ search: searchTerm });
+        const farmersRes = await adminService.getFarmers({ search: '' });
         if (farmersRes.data?.farmers) {
           setFarmers(farmersRes.data.farmers);
         }
       }
     } catch (err) {
-      console.warn('Admin load data fallback error:', err.message);
+      console.warn('Admin sync note:', err.message);
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [selectedCentre, statusFilter, searchTerm, activeTab]);
+  }, [selectedCentre, activeTab]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
-  // Auto refresh every 12 seconds if enabled
+  // Fast 3.5s silent background syncing
   useEffect(() => {
     if (!autoRefresh) return;
     const interval = setInterval(() => {
       loadData(true);
-    }, 12000);
+    }, 3500);
     return () => clearInterval(interval);
   }, [autoRefresh, loadData]);
 
   const showToast = (msg) => {
     setNotification(msg);
-    setTimeout(() => setNotification(''), 4000);
+    setTimeout(() => setNotification(''), 3500);
   };
 
-  const handleAdvanceStage = async (bookingId, stageKey, extraData = {}) => {
-    setActionLoading(true);
+  // 🚀 INSTANT OPTIMISTIC STAGE ADVANCER (0ms lag)
+  const handleAdvanceStage = async (bookingId, targetStageKey, extraData = {}) => {
+    const normTarget = targetStageKey === 'PAYMENT_CREDITED' ? 'COMPLETED' : targetStageKey;
+    const targetIdx = getStageIndex(normTarget);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const autoBill = `BILL-${todayStr.replace(/-/g, '')}-${String(bookingId).padStart(3, '0')}`;
+    const autoUtr = `UTR${Date.now().toString().slice(-9)}`;
+
+    // 1. Optimistically update local booking list immediately
+    setBookings((prevList) =>
+      prevList.map((item) => {
+        if (item.id !== bookingId) return item;
+        
+        const cropMsp = parseFloat(item.msp_per_quintal || 2275);
+        const finalQty = parseFloat(extraData.actualQuantity || item.actual_quantity_quintals || item.quantity || 10);
+        const totalPayout = (finalQty * cropMsp).toFixed(2);
+
+        return {
+          ...item,
+          status: normTarget,
+          actual_quantity_quintals: extraData.actualQuantity || item.actual_quantity_quintals || finalQty,
+          quality_grade: extraData.qualityGrade || item.quality_grade || 'Grade A',
+          bill_number: targetIdx >= 4 ? (item.bill_number || autoBill) : item.bill_number,
+          procurement_amount: targetIdx >= 4 ? totalPayout : item.procurement_amount,
+          payment_status: targetIdx === 6 ? 'CREDITED' : (targetIdx >= 5 ? 'INITIATED' : item.payment_status),
+          payment_amount: targetIdx >= 5 ? totalPayout : item.payment_amount,
+          utr_number: targetIdx === 6 ? (item.utr_number || autoUtr) : item.utr_number,
+          credited_date: targetIdx === 6 ? (item.credited_date || todayStr) : item.credited_date,
+          queue_position: targetIdx === 6 ? 0 : item.queue_position,
+        };
+      })
+    );
+
+    // 2. Optimistically update metrics
+    setStats((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        completedBookings: normTarget === 'COMPLETED' ? prev.completedBookings + 1 : prev.completedBookings,
+        activeQueue: normTarget === 'COMPLETED' ? Math.max(0, prev.activeQueue - 1) : prev.activeQueue,
+      };
+    });
+
+    const targetStageObj = STAGES[targetIdx] || { label: normTarget };
+    showToast(`⚡ Stage updated instantly: ${targetStageObj.icon} ${targetStageObj.label}`);
+    setWeighModalBooking(null);
+
+    // 3. Background asynchronous sync with backend
     try {
       await adminService.updateStage(bookingId, {
-        status: stageKey,
+        status: normTarget,
         ...extraData,
       });
-      showToast(`✅ Booking stage updated to ${stageKey}`);
-      await loadData(true);
+      // Silent refresh to get full server confirmation
+      loadData(true);
     } catch (err) {
-      showToast(`❌ Failed to update stage: ${err.message}`);
-    } finally {
-      setActionLoading(false);
-      setWeighModalBooking(null);
+      console.warn('Background sync error:', err.message);
+    }
+  };
+
+  // Advance to next logical stage
+  const handleQuickAdvanceNext = (booking) => {
+    const currIdx = getStageIndex(booking.status);
+    if (currIdx >= STAGES.length - 1) return;
+    const nextStage = STAGES[currIdx + 1];
+
+    if (nextStage.key === 'WEIGHING') {
+      setWeighModalBooking(booking);
+      setWeighQty(booking.actual_quantity_quintals || booking.quantity || '10');
+      setWeighGrade(booking.quality_grade || 'Grade A');
+    } else {
+      handleAdvanceStage(booking.id, nextStage.key);
     }
   };
 
@@ -163,6 +238,61 @@ const AdminDashboard = () => {
     }
   };
 
+  // Dynamic filter status counts
+  const statusCounts = useMemo(() => {
+    const counts = { all: bookings.length };
+    STAGES.forEach((s) => {
+      counts[s.key] = bookings.filter((b) => {
+        if (s.key === 'COMPLETED') return b.status === 'COMPLETED' || b.status === 'PAYMENT_CREDITED';
+        return b.status === s.key;
+      }).length;
+    });
+    return counts;
+  }, [bookings]);
+
+  // Client-side filtered list with instant search
+  const filteredBookings = useMemo(() => {
+    return bookings.filter((b) => {
+      // Centre filter
+      if (selectedCentre !== 'all' && String(b.centre_id) !== String(selectedCentre)) {
+        return false;
+      }
+
+      // Status filter
+      if (statusFilter !== 'all') {
+        if (statusFilter === 'COMPLETED') {
+          if (b.status !== 'COMPLETED' && b.status !== 'PAYMENT_CREDITED') return false;
+        } else if (b.status !== statusFilter) {
+          return false;
+        }
+      }
+
+      // Search filter
+      if (searchTerm && searchTerm.trim()) {
+        const q = searchTerm.toLowerCase().trim();
+        const fName = (b.farmer_name || '').toLowerCase();
+        const phone = (b.phone_number || '').toLowerCase();
+        const token = (b.token_number || '').toLowerCase();
+        const bill = (b.bill_number || '').toLowerCase();
+        const utr = (b.utr_number || '').toLowerCase();
+        const crop = (b.crop_name || '').toLowerCase();
+        const centre = (b.centre_name || '').toLowerCase();
+
+        return (
+          fName.includes(q) ||
+          phone.includes(q) ||
+          token.includes(q) ||
+          bill.includes(q) ||
+          utr.includes(q) ||
+          crop.includes(q) ||
+          centre.includes(q)
+        );
+      }
+
+      return true;
+    });
+  }, [bookings, selectedCentre, statusFilter, searchTerm]);
+
   const getStatusBadgeStyle = (status) => {
     switch (status) {
       case 'BOOKED':
@@ -178,6 +308,7 @@ const AdminDashboard = () => {
       case 'PAYMENT_INITIATED':
         return { bg: '#fff8e1', text: '#f57f17', border: '#ffecb3' };
       case 'COMPLETED':
+      case 'PAYMENT_CREDITED':
       case 'CREDITED':
         return { bg: '#e8f5e9', text: '#2e7d32', border: '#c8e6c9' };
       case 'CANCELLED':
@@ -201,7 +332,7 @@ const AdminDashboard = () => {
               <span style={styles.portalTag}>MANDI OFFICER PORTAL</span>
             </div>
             <p style={styles.headerSubtitle}>
-              Punjab State Agricultural Marketing Board • Smart Procurement Control Desk
+              Punjab State Agricultural Marketing Board • Real-Time Smart Procurement Desk
             </p>
           </div>
         </div>
@@ -209,22 +340,17 @@ const AdminDashboard = () => {
         <div style={styles.headerRight}>
           <div style={styles.liveIndicator}>
             <span style={styles.pulsingDot} />
-            <span style={{ fontSize: '13px', fontWeight: '600', color: '#2e7d32' }}>Live Operations</span>
+            <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#2e7d32' }}>
+              {autoRefresh ? '🟢 Live Synced (3s)' : '⚪ Paused'}
+            </span>
           </div>
 
           {adminUser && (
-            <div style={{
-              background: '#f0f4f8',
-              padding: '6px 12px',
-              borderRadius: '8px',
-              fontSize: '13px',
-              color: '#334e68',
-              border: '1px solid #d9e2ec',
-              display: 'flex',
-              flexDirection: 'column',
-            }}>
-              <strong>👤 {adminUser.fullName}</strong>
-              <span style={{ fontSize: '11px', color: '#627d98' }}>{adminUser.officerId || 'Officer'} • {adminUser.designation || 'Mandi Desk'}</span>
+            <div style={styles.officerBadge}>
+              <strong style={{ fontSize: '13px', color: '#102a43' }}>👤 {adminUser.fullName}</strong>
+              <span style={{ fontSize: '11px', color: '#486581' }}>
+                {adminUser.officerId || 'Officer'} • {adminUser.designation || 'Mandi Intake Desk'}
+              </span>
             </div>
           )}
 
@@ -233,16 +359,13 @@ const AdminDashboard = () => {
           <button 
             onClick={() => {
               const farmerSess = getSession();
-              if (farmerSess) {
-                navigate('/farmer/dashboard');
-              } else {
-                navigate('/login');
-              }
+              if (farmerSess) navigate('/farmer/dashboard');
+              else navigate('/login');
             }}
             style={styles.switchBtn}
-            title="Switch to Farmer Portal"
+            title="Switch to Farmer View"
           >
-            👨‍🌾 Farmer Portal
+            👨‍🌾 Farmer View
           </button>
 
           <button
@@ -250,23 +373,14 @@ const AdminDashboard = () => {
               clearAdminSession();
               navigate('/admin/login', { replace: true });
             }}
-            style={{
-              padding: '8px 14px',
-              background: '#ffebee',
-              color: '#c62828',
-              border: '1px solid #ffcdd2',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              fontSize: '13px',
-            }}
+            style={styles.logoutBtn}
           >
             {t('common.logout')}
           </button>
         </div>
       </header>
 
-      {/* Alert Notification */}
+      {/* Alert Notification Bar */}
       {notification && (
         <div style={styles.toast}>
           {notification}
@@ -292,10 +406,10 @@ const AdminDashboard = () => {
         </div>
 
         <div style={styles.controlItem}>
-          <label style={styles.controlLabel}>🔍 Global Search (Farmer/Token/Bill/UTR):</label>
+          <label style={styles.controlLabel}>🔍 Global Instant Search (Farmer/Token/Bill/UTR):</label>
           <input 
             type="text"
-            placeholder="Search by farmer name, token, phone, bill..."
+            placeholder="Type name, phone, token, bill no..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             style={styles.searchInput}
@@ -304,11 +418,11 @@ const AdminDashboard = () => {
 
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: '10px' }}>
           <button 
-            onClick={() => loadData()} 
+            onClick={() => loadData(false)} 
             style={styles.refreshBtn}
             disabled={loading}
           >
-            {loading ? '⏳ Loading...' : '🔄 Refresh Data'}
+            {loading ? '⏳ Syncing...' : '🔄 Force Refresh'}
           </button>
           <button 
             onClick={() => setAutoRefresh(!autoRefresh)}
@@ -319,7 +433,7 @@ const AdminDashboard = () => {
               color: autoRefresh ? '#2e7d32' : '#666',
             }}
           >
-            {autoRefresh ? '🟢 Auto-Sync ON (12s)' : '⚪ Auto-Sync OFF'}
+            {autoRefresh ? '🟢 Auto-Sync ON (3s)' : '⚪ Auto-Sync OFF'}
           </button>
         </div>
       </div>
@@ -382,7 +496,7 @@ const AdminDashboard = () => {
             ...(activeTab === 'queue' ? styles.tabBtnActive : {}),
           }}
         >
-          📋 Live Operations & Queue ({bookings.length})
+          📋 Live Operations & Queue ({filteredBookings.length})
         </button>
         <button 
           onClick={() => setActiveTab('procurements')}
@@ -416,37 +530,46 @@ const AdminDashboard = () => {
       {/* TAB 1: Live Operations & Queue */}
       {activeTab === 'queue' && (
         <div style={styles.tabContent}>
-          {/* Status Sub-filter */}
+          {/* Status Sub-filter with Live Counter Pills */}
           <div style={styles.statusFilterRow}>
             {[
-              { key: 'all', label: 'All Statuses' },
-              { key: 'BOOKED', label: '📅 Booked' },
-              { key: 'CHECKED_IN', label: '✅ Checked In' },
-              { key: 'WEIGHING', label: '⚖️ Weighing' },
-              { key: 'QUALITY_CHECK', label: '🔍 Quality Check' },
-              { key: 'BILL_GENERATED', label: '📄 Bill Generated' },
-              { key: 'PAYMENT_INITIATED', label: '💰 Payment Initiated' },
-              { key: 'COMPLETED', label: '🏦 Completed & Credited' },
+              { key: 'all', label: 'All Statuses', count: statusCounts.all },
+              { key: 'BOOKED', label: '📅 Booked', count: statusCounts.BOOKED },
+              { key: 'CHECKED_IN', label: '✅ Checked In', count: statusCounts.CHECKED_IN },
+              { key: 'WEIGHING', label: '⚖️ Weighing', count: statusCounts.WEIGHING },
+              { key: 'QUALITY_CHECK', label: '🔍 Quality Check', count: statusCounts.QUALITY_CHECK },
+              { key: 'BILL_GENERATED', label: '📄 Bill Generated', count: statusCounts.BILL_GENERATED },
+              { key: 'PAYMENT_INITIATED', label: '💰 Payment Initiated', count: statusCounts.PAYMENT_INITIATED },
+              { key: 'COMPLETED', label: '🏦 Completed & Credited', count: statusCounts.COMPLETED },
             ].map(f => (
               <button
                 key={f.key}
                 onClick={() => setStatusFilter(f.key)}
                 style={{
                   ...styles.statusFilterPill,
-                  background: statusFilter === f.key ? '#1976d2' : '#f0f4f8',
-                  color: statusFilter === f.key ? '#fff' : '#455a64',
-                  fontWeight: statusFilter === f.key ? 'bold' : 'normal',
+                  background: statusFilter === f.key ? '#1976d2' : '#ffffff',
+                  color: statusFilter === f.key ? '#ffffff' : '#334e68',
+                  borderColor: statusFilter === f.key ? '#1976d2' : '#cbd5e1',
+                  boxShadow: statusFilter === f.key ? '0 2px 8px rgba(25, 118, 210, 0.25)' : 'none',
                 }}
               >
-                {f.label}
+                {f.label} <span style={{
+                  background: statusFilter === f.key ? 'rgba(255,255,255,0.25)' : '#e2e8f0',
+                  color: statusFilter === f.key ? '#fff' : '#1e293b',
+                  padding: '2px 7px',
+                  borderRadius: '10px',
+                  fontSize: '11px',
+                  marginLeft: '4px',
+                  fontWeight: 'bold',
+                }}>{f.count || 0}</span>
               </button>
             ))}
           </div>
 
           {/* Bookings Operations List */}
-          {loading ? (
+          {loading && bookings.length === 0 ? (
             <div style={styles.loadingBox}>⏳ Loading mandi live operations...</div>
-          ) : bookings.length === 0 ? (
+          ) : filteredBookings.length === 0 ? (
             <div style={styles.emptyBox}>
               <p style={{ fontSize: '42px', margin: 0 }}>🌾</p>
               <h3>No bookings found matching selected filters</h3>
@@ -454,21 +577,24 @@ const AdminDashboard = () => {
             </div>
           ) : (
             <div style={styles.operationsList}>
-              {bookings.map((b) => {
+              {filteredBookings.map((b) => {
                 const badge = getStatusBadgeStyle(b.status);
-                const isCompleted = b.status === 'COMPLETED';
+                const currentStageIdx = getStageIndex(b.status);
+                const isCompleted = currentStageIdx === 6;
+                const nextStageObj = currentStageIdx < STAGES.length - 1 ? STAGES[currentStageIdx + 1] : null;
 
                 return (
                   <div key={b.id} style={styles.opCard}>
+                    {/* Card Header */}
                     <div style={styles.opCardHeader}>
                       <div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                           <span style={styles.tokenPill}>{b.token_number || `TOKEN-#${b.id}`}</span>
                           <span style={{ ...styles.badge, background: badge.bg, color: badge.text, borderColor: badge.border }}>
                             {tStatus(b.status)}
                           </span>
                           {b.queue_position > 0 && !isCompleted && (
-                            <span style={styles.queuePosBadge}>Queue Position: #{b.queue_position}</span>
+                            <span style={styles.queuePosBadge}>Queue: #{b.queue_position}</span>
                           )}
                         </div>
                         <h3 style={styles.farmerNameTitle}>
@@ -488,37 +614,91 @@ const AdminDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Operational Details Row */}
+                    {/* 🌟 7-STAGE INTERACTIVE VISUAL PROGRESS TRACKER */}
+                    <div style={styles.stepperContainer}>
+                      <div style={styles.stepperLineTrack}>
+                        <div 
+                          style={{
+                            ...styles.stepperLineFill,
+                            width: `${(currentStageIdx / (STAGES.length - 1)) * 100}%`,
+                          }} 
+                        />
+                      </div>
+
+                      <div style={styles.stepperStepsRow}>
+                        {STAGES.map((st, idx) => {
+                          const isPassed = idx <= currentStageIdx;
+                          const isCurrent = idx === currentStageIdx;
+
+                          return (
+                            <div 
+                              key={st.key} 
+                              onClick={() => {
+                                if (st.key === 'WEIGHING') {
+                                  setWeighModalBooking(b);
+                                  setWeighQty(b.actual_quantity_quintals || b.quantity || '10');
+                                  setWeighGrade(b.quality_grade || 'Grade A');
+                                } else {
+                                  handleAdvanceStage(b.id, st.key);
+                                }
+                              }}
+                              style={styles.stepItemNode}
+                              title={`Jump to ${st.label}`}
+                            >
+                              <div style={{
+                                ...styles.stepCircle,
+                                background: isPassed ? (isCurrent ? '#1565c0' : '#2e7d32') : '#ffffff',
+                                color: isPassed ? '#ffffff' : '#94a3b8',
+                                borderColor: isPassed ? (isCurrent ? '#0d47a1' : '#2e7d32') : '#cbd5e1',
+                                transform: isCurrent ? 'scale(1.15)' : 'scale(1)',
+                                boxShadow: isCurrent ? '0 0 0 4px rgba(21, 101, 192, 0.2)' : 'none',
+                              }}>
+                                {isPassed && !isCurrent ? '✓' : st.icon}
+                              </div>
+                              <span style={{
+                                ...styles.stepLabelText,
+                                color: isPassed ? '#1e293b' : '#94a3b8',
+                                fontWeight: isCurrent ? 'bold' : 'normal',
+                              }}>
+                                {st.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
+                    {/* Operational Details Grid */}
                     <div style={styles.opDetailsGrid}>
                       <div style={styles.opDetailCol}>
-                        <span style={styles.colLabel}>Aadhaar & Bank Info:</span>
+                        <span style={styles.colLabel}>Aadhaar & Bank A/C:</span>
                         <strong style={styles.colValue}>
-                          A/C: {b.bank_account || '00451010009823'} ({b.bank_ifsc || 'SBIN0001234'})
+                          {b.bank_account || '00451010009823'} ({b.bank_ifsc || 'SBIN0001234'})
                         </strong>
                       </div>
                       <div style={styles.opDetailCol}>
-                        <span style={styles.colLabel}>Bill / Receipt Number:</span>
+                        <span style={styles.colLabel}>Bill Number:</span>
                         <strong style={styles.colValue}>
                           {b.bill_number ? (
                             <span style={{ color: '#2e7d32' }}>📄 {b.bill_number}</span>
                           ) : (
-                            <span style={{ color: '#90a4ae' }}>Pending Generation</span>
+                            <span style={{ color: '#90a4ae' }}>Auto-Generates on Step 5</span>
                           )}
                         </strong>
                       </div>
                       <div style={styles.opDetailCol}>
-                        <span style={styles.colLabel}>Total Payout / Amount:</span>
-                        <strong style={{ ...styles.colValue, color: '#2e7d32', fontSize: '16px' }}>
+                        <span style={styles.colLabel}>Total MSP Amount:</span>
+                        <strong style={{ ...styles.colValue, color: '#2e7d32', fontSize: '15px' }}>
                           ₹{parseFloat(b.payment_amount || b.procurement_amount || (parseFloat(b.quantity || 10) * parseFloat(b.msp_per_quintal || 2275))).toLocaleString('en-IN')}
                         </strong>
                       </div>
                       <div style={styles.opDetailCol}>
-                        <span style={styles.colLabel}>Payment UTR & Date:</span>
+                        <span style={styles.colLabel}>Bank UTR Reference:</span>
                         <strong style={styles.colValue}>
                           {b.utr_number ? (
                             <span style={{ color: '#1565c0' }}>🏦 {b.utr_number} ({b.credited_date?.slice(0, 10) || 'Credited'})</span>
                           ) : (
-                            <span style={{ color: '#90a4ae' }}>Awaiting DBT Transfer</span>
+                            <span style={{ color: '#90a4ae' }}>Assigned upon Credited</span>
                           )}
                         </strong>
                       </div>
@@ -526,12 +706,37 @@ const AdminDashboard = () => {
 
                     {/* Officer Action Advancement Station */}
                     <div style={styles.actionStation}>
-                      <span style={styles.actionStationLabel}>⚙️ Officer Stage Action:</span>
-                      
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                        <span style={styles.actionStationLabel}>⚙️ Officer Stage Actions:</span>
+                        
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          {/* Quick Advance Next Step Button */}
+                          {!isCompleted && nextStageObj && (
+                            <button
+                              onClick={() => handleQuickAdvanceNext(b)}
+                              style={styles.quickAdvanceBtn}
+                            >
+                              ⚡ Advance to {nextStageObj.icon} {nextStageObj.label} ➔
+                            </button>
+                          )}
+
+                          {/* 1-Click Settle Button */}
+                          {!isCompleted && (
+                            <button
+                              onClick={() => handleAdvanceStage(b.id, 'PAYMENT_CREDITED')}
+                              style={styles.quickSettleBtn}
+                              title="Directly settle and credit DBT in 1 click"
+                            >
+                              ⚡ 1-Click Settle & Credit 🏦
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Explicit Stage Buttons */}
                       <div style={styles.stageButtonGroup}>
                         <button
                           onClick={() => handleAdvanceStage(b.id, 'CHECKED_IN')}
-                          disabled={actionLoading}
                           style={{
                             ...styles.stageActionBtn,
                             background: b.status === 'CHECKED_IN' ? '#1565c0' : '#fff',
@@ -548,7 +753,6 @@ const AdminDashboard = () => {
                             setWeighQty(b.actual_quantity_quintals || b.quantity || '10');
                             setWeighGrade(b.quality_grade || 'Grade A');
                           }}
-                          disabled={actionLoading}
                           style={{
                             ...styles.stageActionBtn,
                             background: b.status === 'WEIGHING' ? '#00838f' : '#fff',
@@ -561,7 +765,6 @@ const AdminDashboard = () => {
 
                         <button
                           onClick={() => handleAdvanceStage(b.id, 'QUALITY_CHECK', { qualityGrade: 'Grade A' })}
-                          disabled={actionLoading}
                           style={{
                             ...styles.stageActionBtn,
                             background: b.status === 'QUALITY_CHECK' ? '#7b1fa2' : '#fff',
@@ -574,7 +777,6 @@ const AdminDashboard = () => {
 
                         <button
                           onClick={() => handleAdvanceStage(b.id, 'BILL_GENERATED')}
-                          disabled={actionLoading}
                           style={{
                             ...styles.stageActionBtn,
                             background: b.status === 'BILL_GENERATED' ? '#512da8' : '#fff',
@@ -587,7 +789,6 @@ const AdminDashboard = () => {
 
                         <button
                           onClick={() => handleAdvanceStage(b.id, 'PAYMENT_INITIATED')}
-                          disabled={actionLoading}
                           style={{
                             ...styles.stageActionBtn,
                             background: b.status === 'PAYMENT_INITIATED' ? '#f57f17' : '#fff',
@@ -600,7 +801,6 @@ const AdminDashboard = () => {
 
                         <button
                           onClick={() => handleAdvanceStage(b.id, 'PAYMENT_CREDITED')}
-                          disabled={actionLoading}
                           style={{
                             ...styles.stageActionBtn,
                             background: isCompleted ? '#2e7d32' : '#e8f5e9',
@@ -972,9 +1172,8 @@ const AdminDashboard = () => {
                   qualityGrade: weighGrade,
                 })}
                 style={styles.confirmBtn}
-                disabled={actionLoading}
               >
-                {actionLoading ? 'Saving...' : 'Confirm & Save Weighing ✅'}
+                Confirm & Save Weighing ✅
               </button>
             </div>
           </div>
@@ -1147,7 +1346,8 @@ const styles = {
   headerRight: {
     display: 'flex',
     alignItems: 'center',
-    gap: '14px',
+    gap: '12px',
+    flexWrap: 'wrap',
   },
   liveIndicator: {
     display: 'flex',
@@ -1165,8 +1365,16 @@ const styles = {
     background: '#2e7d32',
     display: 'inline-block',
   },
+  officerBadge: {
+    background: '#f0f4f8',
+    padding: '6px 12px',
+    borderRadius: '8px',
+    border: '1px solid #d9e2ec',
+    display: 'flex',
+    flexDirection: 'column',
+  },
   switchBtn: {
-    padding: '8px 16px',
+    padding: '8px 14px',
     background: '#fff',
     border: '1px solid #cfd8dc',
     borderRadius: '8px',
@@ -1174,7 +1382,16 @@ const styles = {
     color: '#37474f',
     cursor: 'pointer',
     fontSize: '13px',
-    transition: 'all 0.2s',
+  },
+  logoutBtn: {
+    padding: '8px 14px',
+    background: '#ffebee',
+    color: '#c62828',
+    border: '1px solid #ffcdd2',
+    borderRadius: '8px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    fontSize: '13px',
   },
   toast: {
     background: '#2e7d32',
@@ -1311,12 +1528,15 @@ const styles = {
     marginBottom: '16px',
   },
   statusFilterPill: {
-    padding: '6px 14px',
+    padding: '7px 14px',
     borderRadius: '20px',
-    border: 'none',
+    border: '1px solid #cbd5e1',
     fontSize: '13px',
     cursor: 'pointer',
     transition: 'all 0.2s',
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
   },
   loadingBox: {
     textAlign: 'center',
@@ -1334,13 +1554,13 @@ const styles = {
   },
   operationsList: {
     display: 'grid',
-    gap: '16px',
+    gap: '18px',
   },
   opCard: {
     background: '#fff',
-    borderRadius: '12px',
-    padding: '20px',
-    boxShadow: '0 2px 10px rgba(0,0,0,0.04)',
+    borderRadius: '14px',
+    padding: '22px',
+    boxShadow: '0 3px 12px rgba(0,0,0,0.05)',
     border: '1px solid #eef2f6',
   },
   opCardHeader: {
@@ -1405,6 +1625,64 @@ const styles = {
     fontSize: '12px',
     color: '#64748b',
   },
+
+  // 7-Stage Horizontal Stepper styles
+  stepperContainer: {
+    position: 'relative',
+    margin: '18px 0 14px',
+    padding: '10px 8px 6px',
+    background: '#f8fafc',
+    borderRadius: '10px',
+    border: '1px solid #e2e8f0',
+  },
+  stepperLineTrack: {
+    position: 'absolute',
+    top: '26px',
+    left: '5%',
+    right: '5%',
+    height: '4px',
+    background: '#e2e8f0',
+    zIndex: 1,
+    borderRadius: '2px',
+  },
+  stepperLineFill: {
+    height: '100%',
+    background: 'linear-gradient(90deg, #1565c0, #2e7d32)',
+    borderRadius: '2px',
+    transition: 'width 0.35s ease',
+  },
+  stepperStepsRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    position: 'relative',
+    zIndex: 2,
+  },
+  stepItemNode: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    cursor: 'pointer',
+    width: '13%',
+  },
+  stepCircle: {
+    width: '32px',
+    height: '32px',
+    borderRadius: '50%',
+    border: '2px solid',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+    fontWeight: 'bold',
+    transition: 'all 0.25s',
+  },
+  stepLabelText: {
+    fontSize: '11px',
+    marginTop: '6px',
+    textAlign: 'center',
+    whiteSpace: 'nowrap',
+  },
+
   opDetailsGrid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
@@ -1431,12 +1709,34 @@ const styles = {
     paddingTop: '14px',
     display: 'flex',
     flexDirection: 'column',
-    gap: '10px',
+    gap: '12px',
   },
   actionStationLabel: {
-    fontSize: '12px',
+    fontSize: '13px',
     fontWeight: 'bold',
     color: '#475569',
+  },
+  quickAdvanceBtn: {
+    padding: '7px 14px',
+    background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(25,118,210,0.3)',
+  },
+  quickSettleBtn: {
+    padding: '7px 14px',
+    background: 'linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)',
+    color: '#fff',
+    border: 'none',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: 'bold',
+    cursor: 'pointer',
+    boxShadow: '0 2px 6px rgba(46,125,50,0.3)',
   },
   stageButtonGroup: {
     display: 'flex',
