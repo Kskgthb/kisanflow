@@ -105,6 +105,12 @@ const Login = () => {
             {t('auth.registerHere')}
           </Link>
         </p>
+
+        <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #eee', textAlign: 'center' }}>
+          <Link to="/admin" style={{ color: '#1976d2', fontWeight: 'bold', fontSize: '13px', textDecoration: 'none' }}>
+            🛡️ Access Mandi Officer / Admin Portal →
+          </Link>
+        </div>
       </div>
     </div>
   );

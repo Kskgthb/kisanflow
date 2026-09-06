@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const authController = require('../controllers/authController');
 const bookingController = require('../controllers/bookingController');
+const adminController = require('../controllers/adminController');
 const authMiddleware = require('../middleware/auth');
 const { sendSMS, sendFast2SMS } = require('../services/smsService');
 
@@ -20,6 +21,16 @@ router.post('/bookings/:id/status', bookingController.updateBookingStatus);
 
 // Payments
 router.get('/payments/farmer/:farmerId', bookingController.getFarmerPayments);
+
+// Admin / Mandi Officer Portal
+router.get('/admin/stats', adminController.getAdminStats);
+router.get('/admin/bookings', adminController.getAdminBookings);
+router.patch('/admin/bookings/:id/stage', adminController.updateBookingStage);
+router.post('/admin/bookings/:id/stage', adminController.updateBookingStage);
+router.get('/admin/farmers', adminController.getAdminFarmers);
+router.get('/admin/procurements', adminController.getAdminProcurements);
+router.patch('/admin/crops/:id/msp', adminController.updateCropMsp);
+router.patch('/admin/centres/:id/capacity', adminController.updateCentreCapacity);
 
 // Diagnostic SMS test endpoint
 router.get('/test-sms/:phone', async (req, res) => {

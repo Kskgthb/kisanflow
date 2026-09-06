@@ -7,6 +7,7 @@ import FarmerDashboard from './pages/FarmerDashboard';
 import BookSlot from './pages/BookSlot';
 import TrackBooking from './pages/TrackBooking';
 import PaymentHistory from './pages/PaymentHistory';
+import AdminDashboard from './pages/AdminDashboard';
 import './App.css';
 
 function App() {
@@ -21,6 +22,8 @@ function App() {
           <Route path="/farmer/book-slot" element={<BookSlot />} />
           <Route path="/farmer/track/:bookingId" element={<TrackBooking />} />
           <Route path="/farmer/payments" element={<PaymentHistory />} />
+          <Route path="/admin" element={<AdminDashboard />} />
+          <Route path="/admin/dashboard" element={<AdminDashboard />} />
         </Routes>
       </Router>
     </LanguageProvider>

@@ -84,6 +84,21 @@ const FarmerDashboard = () => {
       <div style={styles.header}>
         <h1 style={styles.logo}>🌾 {t('common.appName')}</h1>
         <div style={styles.headerRight}>
+          <button 
+            onClick={() => navigate('/admin')} 
+            style={{
+              padding: '8px 14px',
+              background: '#e3f2fd',
+              color: '#1565c0',
+              border: '1px solid #bbdefb',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            🛡️ Admin Portal
+          </button>
           <LanguageSelector variant="light" />
           <span style={styles.welcome}>
             {t('common.welcome', { name: farmer?.fullName || 'Kisan' })}
@@ -107,6 +122,16 @@ const FarmerDashboard = () => {
           style={styles.quickActionBtn}
         >
           {t('dashboard.paymentHistory')}
+        </button>
+        <button 
+          onClick={() => navigate('/admin')} 
+          style={{
+            ...styles.quickActionBtn,
+            background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
+            color: '#fff',
+          }}
+        >
+          🛡️ Mandi Admin Desk
         </button>
       </div>
 
