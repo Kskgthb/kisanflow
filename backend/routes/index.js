@@ -6,9 +6,17 @@ const adminController = require('../controllers/adminController');
 const authMiddleware = require('../middleware/auth');
 const { sendSMS, sendFast2SMS } = require('../services/smsService');
 
-// Auth
+// Farmer Auth
 router.post('/auth/register', authController.registerFarmer);
 router.post('/auth/login', authController.loginFarmer);
+
+// Admin / Mandi Officer Auth
+router.post('/auth/admin/register', authController.registerAdmin);
+router.post('/auth/admin/login', authController.loginAdmin);
+
+// Forgot Password Flow (Farmer & Admin)
+router.post('/auth/forgot-password/otp', authController.requestPasswordResetOtp);
+router.post('/auth/forgot-password/reset', authController.verifyOtpAndResetPassword);
 
 // Bookings
 router.get('/centres', bookingController.getCentres);

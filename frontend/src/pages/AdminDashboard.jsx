@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { adminService, bookingService } from '../services/api';
+import { getAdminSession, clearAdminSession, getSession } from '../services/auth';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
 
@@ -8,6 +9,7 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const { t, tCrop, tStatus } = useLanguage();
 
+  const [adminUser, setAdminUser] = useState(null);
   const [activeTab, setActiveTab] = useState('queue'); // 'queue' | 'procurements' | 'farmers' | 'config'
   const [selectedCentre, setSelectedCentre] = useState('all');
   const [centresList, setCentresList] = useState([]);
@@ -29,6 +31,19 @@ const AdminDashboard = () => {
   const [weighModalBooking, setWeighModalBooking] = useState(null);
   const [weighQty, setWeighQty] = useState('');
   const [weighGrade, setWeighGrade] = useState('Grade A');
+
+  // Enforce Officer Authentication Guard
+  useEffect(() => {
+    const session = getAdminSession();
+    if (!session) {
+      navigate('/admin/login', { replace: true });
+      return;
+    }
+    setAdminUser(session.admin);
+    if (session.admin.centreId) {
+      setSelectedCentre(session.admin.centreId.toString());
+    }
+  }, [navigate]);
 
   // Load centres on mount
   useEffect(() => {
@@ -196,13 +211,57 @@ const AdminDashboard = () => {
             <span style={styles.pulsingDot} />
             <span style={{ fontSize: '13px', fontWeight: '600', color: '#2e7d32' }}>Live Operations</span>
           </div>
+
+          {adminUser && (
+            <div style={{
+              background: '#f0f4f8',
+              padding: '6px 12px',
+              borderRadius: '8px',
+              fontSize: '13px',
+              color: '#334e68',
+              border: '1px solid #d9e2ec',
+              display: 'flex',
+              flexDirection: 'column',
+            }}>
+              <strong>👤 {adminUser.fullName}</strong>
+              <span style={{ fontSize: '11px', color: '#627d98' }}>{adminUser.officerId || 'Officer'} • {adminUser.designation || 'Mandi Desk'}</span>
+            </div>
+          )}
+
           <LanguageSelector variant="light" />
+
           <button 
-            onClick={() => navigate('/farmer/dashboard')}
+            onClick={() => {
+              const farmerSess = getSession();
+              if (farmerSess) {
+                navigate('/farmer/dashboard');
+              } else {
+                navigate('/login');
+              }
+            }}
             style={styles.switchBtn}
-            title="Switch to Farmer View"
+            title="Switch to Farmer Portal"
           >
-            👨‍🌾 Farmer View
+            👨‍🌾 Farmer Portal
+          </button>
+
+          <button
+            onClick={() => {
+              clearAdminSession();
+              navigate('/admin/login', { replace: true });
+            }}
+            style={{
+              padding: '8px 14px',
+              background: '#ffebee',
+              color: '#c62828',
+              border: '1px solid #ffcdd2',
+              borderRadius: '8px',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              fontSize: '13px',
+            }}
+          >
+            {t('common.logout')}
           </button>
         </div>
       </header>

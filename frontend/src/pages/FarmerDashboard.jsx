@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { bookingService } from '../services/api';
-import { getSession, clearSession } from '../services/auth';
+import { getSession, clearSession, getAdminSession } from '../services/auth';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
 
@@ -25,6 +25,15 @@ const FarmerDashboard = () => {
     setLoading(true);
     fetchBookings(session.farmer.id);
   }, [navigate, location.key]);
+
+  const handleAdminSwitch = () => {
+    const adminSess = getAdminSession();
+    if (adminSess) {
+      navigate('/admin/dashboard');
+    } else {
+      navigate('/admin/login');
+    }
+  };
 
   const fetchBookings = async (farmerId) => {
     try {
@@ -85,7 +94,7 @@ const FarmerDashboard = () => {
         <h1 style={styles.logo}>🌾 {t('common.appName')}</h1>
         <div style={styles.headerRight}>
           <button 
-            onClick={() => navigate('/admin')} 
+            onClick={handleAdminSwitch} 
             style={{
               padding: '8px 14px',
               background: '#e3f2fd',
@@ -124,7 +133,7 @@ const FarmerDashboard = () => {
           {t('dashboard.paymentHistory')}
         </button>
         <button 
-          onClick={() => navigate('/admin')} 
+          onClick={handleAdminSwitch} 
           style={{
             ...styles.quickActionBtn,
             background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',

@@ -83,7 +83,15 @@ const Login = () => {
           </div>
 
           <div style={styles.formGroup}>
-            <label style={styles.label}>{t('auth.password')}</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <label style={{ ...styles.label, marginBottom: 0 }}>{t('auth.password')}</label>
+              <Link 
+                to="/forgot-password?role=farmer" 
+                style={{ color: '#2e7d32', fontSize: '12px', fontWeight: 'bold', textDecoration: 'none' }}
+              >
+                {t('forgotPassword.title')}?
+              </Link>
+            </div>
             <input
               type="password"
               value={formData.password}
@@ -107,7 +115,7 @@ const Login = () => {
         </p>
 
         <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid #eee', textAlign: 'center' }}>
-          <Link to="/admin" style={{ color: '#1976d2', fontWeight: 'bold', fontSize: '13px', textDecoration: 'none' }}>
+          <Link to="/admin/login" style={{ color: '#1976d2', fontWeight: 'bold', fontSize: '13px', textDecoration: 'none' }}>
             🛡️ Access Mandi Officer / Admin Portal →
           </Link>
         </div>

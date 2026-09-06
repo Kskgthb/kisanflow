@@ -21,8 +21,17 @@ api.interceptors.request.use((config) => {
 });
 
 export const authService = {
+  // Farmer
   register: (data) => api.post('/auth/register', data),
   login: (data) => api.post('/auth/login', data),
+  
+  // Admin / Officer
+  adminRegister: (data) => api.post('/auth/admin/register', data),
+  adminLogin: (data) => api.post('/auth/admin/login', data),
+
+  // Forgot Password
+  requestResetOtp: (data) => api.post('/auth/forgot-password/otp', data),
+  resetPassword: (data) => api.post('/auth/forgot-password/reset', data),
 };
 
 export const bookingService = {

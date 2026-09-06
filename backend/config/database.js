@@ -116,6 +116,29 @@ const initDatabase = async () => {
             is_read BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT NOW()
           );
+
+          CREATE TABLE IF NOT EXISTS admins (
+            id SERIAL PRIMARY KEY,
+            officer_id VARCHAR(50) UNIQUE NOT NULL,
+            full_name VARCHAR(100) NOT NULL,
+            phone_number VARCHAR(15) UNIQUE NOT NULL,
+            email VARCHAR(100),
+            centre_id INT,
+            designation VARCHAR(100) DEFAULT 'Mandi Procurement Officer',
+            password_hash VARCHAR(255) NOT NULL,
+            role VARCHAR(30) DEFAULT 'OFFICER',
+            created_at TIMESTAMP DEFAULT NOW()
+          );
+
+          CREATE TABLE IF NOT EXISTS password_resets (
+            id SERIAL PRIMARY KEY,
+            phone_number VARCHAR(15) NOT NULL,
+            user_type VARCHAR(20) DEFAULT 'FARMER',
+            otp_code VARCHAR(10) NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            is_used BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW()
+          );
         `);
 
         // Seed initial centres if empty
@@ -138,6 +161,17 @@ const initDatabase = async () => {
             ('Paddy', 'Kharif', 2183),
             ('Cotton', 'Kharif', 7020);
           `);
+        }
+
+        // Seed default demo officer/admin if empty
+        const adminCount = await client.query('SELECT COUNT(*) FROM admins');
+        if (adminCount.rows[0].count == 0) {
+          const bcrypt = require('bcryptjs');
+          const hash = await bcrypt.hash('admin123', 10);
+          await client.query(`
+            INSERT INTO admins (officer_id, full_name, phone_number, email, centre_id, designation, password_hash, role)
+            VALUES ('OFF-101', 'Sukhwinder Singh', '9876543210', 'officer@punjabmandi.gov.in', 1, 'Chief Mandi Officer', $1, 'ADMIN');
+          `, [hash]);
         }
         console.log('✅ Database initialized successfully');
       } catch (err) {

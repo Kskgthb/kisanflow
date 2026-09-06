@@ -20,8 +20,6 @@ const TrackBooking = () => {
   const { t, tCrop, tStatus } = useLanguage();
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
-  const [statusMsg, setStatusMsg] = useState('');
   // Track the highest stage index reached so UI can never go backwards
   const highestStageRef = React.useRef(0);
   const [procurementStatus, setProcurementStatus] = useState({
@@ -60,94 +58,48 @@ const TrackBooking = () => {
   };
 
   useEffect(() => {
-    const fetchBooking = async () => {
-      setLoading(true);
+    const fetchBooking = async (silent = false) => {
+      if (!silent) setLoading(true);
       try {
         const response = await bookingService.getBookingById(bookingId);
         if (response.data?.booking) {
           const data = response.data.booking;
           setBooking(data);
-          // allowRegress=true: initial load sets correct DB status as starting point
-          syncStagesWithStatus(data.status || 'BOOKED', true);
+          // allowRegress=true on first fetch, false on subsequent polls
+          syncStagesWithStatus(data.status || 'BOOKED', !silent);
         }
       } catch (err) {
-        console.warn('Live booking fetch failed, using fallback:', err.message);
-        const demoBooking = {
-          id: bookingId,
-          tokenNumber: `KISAN-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-001`,
-          cropName: 'Wheat',
-          quantity: '5.5',
-          centreName: 'Mandi Samiti Ludhiana',
-          bookingDate: new Date().toISOString().slice(0, 10),
-          slotTime: '10:00',
-          status: 'BOOKED',
-          queuePosition: 1,
-          estimatedWait: 10,
-        };
-        setBooking(demoBooking);
-        syncStagesWithStatus('BOOKED', true);
+        if (!silent) {
+          console.warn('Live booking fetch failed, using fallback:', err.message);
+          const demoBooking = {
+            id: bookingId,
+            tokenNumber: `KISAN-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-001`,
+            cropName: 'Wheat',
+            quantity: '5.5',
+            centreName: 'Mandi Samiti Ludhiana',
+            bookingDate: new Date().toISOString().slice(0, 10),
+            slotTime: '10:00',
+            status: 'BOOKED',
+            queuePosition: 1,
+            estimatedWait: 10,
+          };
+          setBooking(demoBooking);
+          syncStagesWithStatus('BOOKED', true);
+        }
       } finally {
-        setLoading(false);
+        if (!silent) setLoading(false);
       }
     };
 
-    fetchBooking();
+    fetchBooking(false);
+
+    // Auto-poll every 7 seconds to reflect Mandi Officer updates in real-time
+    const interval = setInterval(() => {
+      fetchBooking(true);
+    }, 7000);
+
+    return () => clearInterval(interval);
   }, [bookingId]);
-
-  const updateStage = async (stageKey) => {
-    if (updating) return;
-    setUpdating(true);
-
-    const targetDbStatus = stageKey === 'PAYMENT_CREDITED' ? 'COMPLETED' : stageKey;
-
-    // ✅ OPTIMISTIC: update UI instantly — authoritative visual state
-    syncStagesWithStatus(stageKey);
-
-    const estimatedAmt = (parseFloat(booking?.quantity || 10) * 2275).toFixed(2);
-    const todayStr = new Date().toISOString().slice(0, 10);
-    const autoBill = booking?.billNumber || `BILL-${todayStr.replace(/-/g, '')}-${String(bookingId).padStart(3, '0')}`;
-    const autoUtr = booking?.utrNumber || `UTR${Date.now().toString().slice(-9)}`;
-
-    setBooking((prev) => (prev ? {
-      ...prev,
-      status: targetDbStatus,
-      queuePosition: targetDbStatus === 'COMPLETED' ? 0 : prev.queuePosition,
-      estimatedWait: targetDbStatus === 'COMPLETED' ? 0 : prev.estimatedWait,
-      paymentStatus: targetDbStatus === 'COMPLETED' ? 'CREDITED' : prev.paymentStatus,
-      paymentAmount: targetDbStatus === 'COMPLETED' ? (prev.paymentAmount || estimatedAmt) : prev.paymentAmount,
-      billNumber: targetDbStatus === 'COMPLETED' ? (prev.billNumber || autoBill) : prev.billNumber,
-      utrNumber: targetDbStatus === 'COMPLETED' ? (prev.utrNumber || autoUtr) : prev.utrNumber,
-      creditedDate: targetDbStatus === 'COMPLETED' ? (prev.creditedDate || todayStr) : prev.creditedDate,
-    } : prev));
-    setStatusMsg(t('trackBooking.statusUpdating'));
-
-    // Send update to backend
-    try {
-      await bookingService.updateBookingStatus(bookingId, targetDbStatus);
-    } catch (err) {
-      console.warn('Backend status update note:', err.message);
-    }
-
-    // Re-fetch to get synced fields from backend
-    try {
-      const response = await bookingService.getBookingById(bookingId);
-      if (response.data?.booking) {
-        const data = response.data.booking;
-        setBooking((prev) => ({
-          ...prev,
-          ...data,
-          status: targetDbStatus === 'COMPLETED' ? 'COMPLETED' : (data.status || prev?.status),
-          paymentStatus: targetDbStatus === 'COMPLETED' ? 'CREDITED' : (data.paymentStatus || prev?.paymentStatus),
-        }));
-      }
-    } catch (err) {
-      console.warn('Payment details re-fetch note:', err.message);
-    }
-
-    setUpdating(false);
-    setStatusMsg(t('trackBooking.stageUpdated', { stage: t(`trackBooking.stages.${stageKey}`) }));
-    setTimeout(() => setStatusMsg(''), 4000);
-  };
 
   const isCompleted = booking?.status === 'COMPLETED' || booking?.paymentStatus === 'CREDITED' || procurementStatus?.currentStage === 'PAYMENT_CREDITED';
 
@@ -163,22 +115,6 @@ const TrackBooking = () => {
         </div>
         <LanguageSelector variant="light" />
       </div>
-
-      {statusMsg && (
-        <div style={{
-          background: '#e8f5e9',
-          border: '1px solid #a5d6a7',
-          color: '#2e7d32',
-          padding: '12px 20px',
-          borderRadius: '8px',
-          marginBottom: '20px',
-          fontWeight: '600',
-          textAlign: 'center',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.05)'
-        }}>
-          {statusMsg}
-        </div>
-      )}
 
       {isCompleted && (
         <div style={{
@@ -346,44 +282,43 @@ const TrackBooking = () => {
             </div>
           </div>
 
-          {/* Demo Controls - Staff ke liye */}
-          <div style={styles.demoControls}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Live Mandi Status Notice */}
+          <div style={{
+            background: '#ffffff',
+            padding: '20px',
+            borderRadius: '12px',
+            boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+            border: '1px solid #e0e0e0',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '15px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <span style={{ fontSize: '28px' }}>📡</span>
               <div>
-                <h3 style={{ margin: 0 }}>{t('trackBooking.demoTitle')}</h3>
-                <p style={{ margin: '4px 0 0', color: '#666' }}>{t('trackBooking.demoSubtitle')}</p>
+                <h4 style={{ margin: '0 0 2px', fontSize: '15px', color: '#1b5e20' }}>
+                  Live Real-Time Procurement Tracker
+                </h4>
+                <p style={{ margin: 0, fontSize: '13px', color: '#607d8b' }}>
+                  Stages are processed and verified directly by Mandi Officers at the intake gate.
+                </p>
               </div>
-              {updating && <span style={{ color: '#ff9800', fontWeight: 'bold' }}>⏳ {t('trackBooking.statusUpdating')}</span>}
             </div>
-            <div style={styles.buttonGroup}>
-              <button onClick={() => updateStage('CHECKED_IN')} style={styles.demoBtn} disabled={updating}>
-                {t('trackBooking.demoButtons.CHECKED_IN')}
-              </button>
-              <button onClick={() => updateStage('WEIGHING')} style={styles.demoBtn} disabled={updating}>
-                {t('trackBooking.demoButtons.WEIGHING')}
-              </button>
-              <button onClick={() => updateStage('QUALITY_CHECK')} style={styles.demoBtn} disabled={updating}>
-                {t('trackBooking.demoButtons.QUALITY_CHECK')}
-              </button>
-              <button onClick={() => updateStage('BILL_GENERATED')} style={styles.demoBtn} disabled={updating}>
-                {t('trackBooking.demoButtons.BILL_GENERATED')}
-              </button>
-              <button onClick={() => updateStage('PAYMENT_INITIATED')} style={styles.demoBtn} disabled={updating}>
-                {t('trackBooking.demoButtons.PAYMENT_INITIATED')}
-              </button>
-              <button 
-                onClick={() => updateStage('PAYMENT_CREDITED')} 
-                style={{
-                  ...styles.demoBtn,
-                  background: isCompleted ? '#2e7d32' : 'white',
-                  color: isCompleted ? 'white' : '#ff9800',
-                  borderColor: '#2e7d32',
-                  fontWeight: 'bold',
-                }} 
-                disabled={updating}
-              >
-                {t('trackBooking.demoButtons.PAYMENT_CREDITED')}
-              </button>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: '#e8f5e9',
+              padding: '6px 12px',
+              borderRadius: '20px',
+              border: '1px solid #a5d6a7',
+              fontSize: '12px',
+              color: '#2e7d32',
+              fontWeight: 'bold',
+            }}>
+              <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2e7d32', display: 'inline-block' }} />
+              Live Synced
             </div>
           </div>
         </>
