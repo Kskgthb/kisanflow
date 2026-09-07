@@ -182,6 +182,8 @@ exports.updateBookingStage = async (req, res) => {
       status = 'COMPLETED';
     }
 
+    const STAGE_ORDER = ['BOOKED', 'CHECKED_IN', 'WEIGHING', 'QUALITY_CHECK', 'BILL_GENERATED', 'PAYMENT_INITIATED', 'COMPLETED'];
+
     const bookingRes = await db.query(`
       SELECT sb.*, pc.name as centre_name, c.name as crop_name, c.msp_per_quintal
       FROM slot_bookings sb
@@ -195,6 +197,34 @@ exports.updateBookingStage = async (req, res) => {
     }
 
     const booking = bookingRes.rows[0];
+    const currentStatus = booking.status === 'PAYMENT_CREDITED' ? 'COMPLETED' : (booking.status || 'BOOKED');
+
+    // 🔒 1. Strict Lock Rule: Once COMPLETED, record is strictly immutable
+    if (currentStatus === 'COMPLETED') {
+      return res.status(400).json({ 
+        error: '🔒 Strict Lock: This procurement has already been COMPLETED & CREDITED. Completed records are strictly finalized and cannot be modified or reversed.' 
+      });
+    }
+
+    // 🔒 2. Strict Step-by-Step Rule: Cannot bypass stages
+    const currIdx = STAGE_ORDER.indexOf(currentStatus);
+    const targetIdx = STAGE_ORDER.indexOf(status);
+
+    if (targetIdx === -1) {
+      return res.status(400).json({ error: `Invalid stage status: "${status}"` });
+    }
+
+    if (targetIdx <= currIdx) {
+      return res.status(400).json({ 
+        error: `Strict Flow: Cannot regress or re-trigger past stage. Current stage is "${currentStatus}" (Step ${currIdx + 1}/7).` 
+      });
+    }
+
+    if (targetIdx !== currIdx + 1) {
+      return res.status(400).json({ 
+        error: `Strict Sequential Enforcement: Bypassing stages is strictly prohibited! You must advance step-by-step from Step ${currIdx + 1} (${STAGE_ORDER[currIdx]}) to Step ${currIdx + 2} (${STAGE_ORDER[currIdx + 1]}). You cannot jump directly to Step ${targetIdx + 1} (${STAGE_ORDER[targetIdx]}).` 
+      });
+    }
 
     const updateRes = await db.query(
       `UPDATE slot_bookings SET status = $1 WHERE id = $2 RETURNING *`,
@@ -206,6 +236,7 @@ exports.updateBookingStage = async (req, res) => {
       `UPDATE live_queue SET current_status = $1, queue_position = CASE WHEN $1 = 'COMPLETED' THEN 0 ELSE queue_position END, last_updated = NOW() WHERE booking_id = $2`,
       [status, id]
     );
+
 
     // Manage procurement & payments records
     if (status === 'COMPLETED' || status === 'PAYMENT_INITIATED' || status === 'BILL_GENERATED' || status === 'QUALITY_CHECK' || status === 'WEIGHING') {

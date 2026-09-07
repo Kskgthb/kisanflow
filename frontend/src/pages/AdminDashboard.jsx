@@ -4,6 +4,8 @@ import { adminService, bookingService } from '../services/api';
 import { getAdminSession, clearAdminSession, getSession } from '../services/auth';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
+import { formatAppDate, formatAppDateWithDay, formatAppTime, getRelativeDateLabel } from '../utils/dateFormatter';
+
 
 const STAGES = [
   { key: 'BOOKED', num: 1, label: 'Booked', icon: '📅', color: '#e65100' },
@@ -143,10 +145,27 @@ const AdminDashboard = () => {
     setTimeout(() => setNotification(''), 3500);
   };
 
-  // 🚀 INSTANT OPTIMISTIC STAGE ADVANCER (0ms lag)
+  // 🚀 STRICT SEQUENTIAL STAGE ADVANCER (Step-by-Step, No Bypass, Immutable once completed)
   const handleAdvanceStage = async (bookingId, targetStageKey, extraData = {}) => {
+    const booking = bookings.find((b) => b.id === bookingId);
+    if (!booking) return;
+
+    const currentIdx = getStageIndex(booking.status);
     const normTarget = targetStageKey === 'PAYMENT_CREDITED' ? 'COMPLETED' : targetStageKey;
     const targetIdx = getStageIndex(normTarget);
+
+    // 🔒 1. Check if already completed
+    if (currentIdx === 6) {
+      showToast('🔒 Strict Lock: This procurement is COMPLETED and finalized. Records cannot be modified.');
+      return;
+    }
+
+    // 🔒 2. Check if trying to bypass steps
+    if (targetIdx !== currentIdx + 1) {
+      showToast(`⚠️ Strict Order: You cannot bypass stages! Complete Step ${currentIdx + 1} (${STAGES[currentIdx].label}) before advancing to Step ${targetIdx + 1}.`);
+      return;
+    }
+
     const todayStr = new Date().toISOString().slice(0, 10);
     const autoBill = `BILL-${todayStr.replace(/-/g, '')}-${String(bookingId).padStart(3, '0')}`;
     const autoUtr = `UTR${Date.now().toString().slice(-9)}`;
@@ -187,7 +206,7 @@ const AdminDashboard = () => {
     });
 
     const targetStageObj = STAGES[targetIdx] || { label: normTarget };
-    showToast(`⚡ Stage updated instantly: ${targetStageObj.icon} ${targetStageObj.label}`);
+    showToast(`⚡ Step ${targetIdx + 1}/7 Advanced: ${targetStageObj.icon} ${targetStageObj.label}`);
     setWeighModalBooking(null);
 
     // 3. Background asynchronous sync with backend
@@ -200,13 +219,18 @@ const AdminDashboard = () => {
       loadData(true);
     } catch (err) {
       console.warn('Background sync error:', err.message);
+      showToast(`❌ Sync error: ${err.response?.data?.error || err.message}`);
+      loadData(true); // Revert to server state on error
     }
   };
 
   // Advance to next logical stage
   const handleQuickAdvanceNext = (booking) => {
     const currIdx = getStageIndex(booking.status);
-    if (currIdx >= STAGES.length - 1) return;
+    if (currIdx >= STAGES.length - 1) {
+      showToast('🔒 This procurement is already COMPLETED.');
+      return;
+    }
     const nextStage = STAGES[currIdx + 1];
 
     if (nextStage.key === 'WEIGHING') {
@@ -217,6 +241,7 @@ const AdminDashboard = () => {
       handleAdvanceStage(booking.id, nextStage.key);
     }
   };
+
 
   const handleSaveCropMsp = async (cropId, newMsp) => {
     try {
@@ -614,7 +639,7 @@ const AdminDashboard = () => {
                       </div>
                     </div>
 
-                    {/* 🌟 7-STAGE INTERACTIVE VISUAL PROGRESS TRACKER */}
+                    {/* 🌟 7-STAGE STRICT SEQUENTIAL VISUAL STEPPER */}
                     <div style={styles.stepperContainer}>
                       <div style={styles.stepperLineTrack}>
                         <div 
@@ -627,40 +652,76 @@ const AdminDashboard = () => {
 
                       <div style={styles.stepperStepsRow}>
                         {STAGES.map((st, idx) => {
-                          const isPassed = idx <= currentStageIdx;
+                          const isDone = idx < currentStageIdx;
                           const isCurrent = idx === currentStageIdx;
+                          const isNext = idx === currentStageIdx + 1 && !isCompleted;
+                          const isFutureLocked = idx > currentStageIdx + 1;
+
+                          let circleBg = '#f1f5f9';
+                          let circleColor = '#94a3b8';
+                          let circleBorder = '#cbd5e1';
+                          let cursor = 'default';
+                          let nodeTitle = `Step ${idx + 1}: ${st.label}`;
+
+                          if (isDone) {
+                            circleBg = '#2e7d32';
+                            circleColor = '#ffffff';
+                            circleBorder = '#1b5e20';
+                            nodeTitle = `✓ Step ${idx + 1} Done: ${st.label}`;
+                          } else if (isCurrent) {
+                            circleBg = '#1565c0';
+                            circleColor = '#ffffff';
+                            circleBorder = '#0d47a1';
+                            nodeTitle = `▶ Current Step ${idx + 1}: ${st.label}`;
+                          } else if (isNext) {
+                            circleBg = '#ecfdf5';
+                            circleColor = '#059669';
+                            circleBorder = '#10b981';
+                            cursor = 'pointer';
+                            nodeTitle = `⚡ Click to Advance to Step ${idx + 1}: ${st.label}`;
+                          } else if (isFutureLocked) {
+                            nodeTitle = `🔒 Locked: Must complete Step ${idx} first`;
+                            cursor = 'not-allowed';
+                          }
 
                           return (
                             <div 
                               key={st.key} 
                               onClick={() => {
-                                if (st.key === 'WEIGHING') {
-                                  setWeighModalBooking(b);
-                                  setWeighQty(b.actual_quantity_quintals || b.quantity || '10');
-                                  setWeighGrade(b.quality_grade || 'Grade A');
-                                } else {
-                                  handleAdvanceStage(b.id, st.key);
+                                if (isNext) {
+                                  if (st.key === 'WEIGHING') {
+                                    setWeighModalBooking(b);
+                                    setWeighQty(b.actual_quantity_quintals || b.quantity || '10');
+                                    setWeighGrade(b.quality_grade || 'Grade A');
+                                  } else {
+                                    handleAdvanceStage(b.id, st.key);
+                                  }
+                                } else if (isFutureLocked) {
+                                  showToast(`🔒 Strict Flow: Complete Step ${idx} first before advancing to Step ${idx + 1}.`);
+                                } else if (isDone) {
+                                  showToast(`✓ Step ${idx + 1} (${st.label}) is already completed.`);
                                 }
                               }}
-                              style={styles.stepItemNode}
-                              title={`Jump to ${st.label}`}
+                              style={{ ...styles.stepItemNode, cursor }}
+                              title={nodeTitle}
                             >
                               <div style={{
                                 ...styles.stepCircle,
-                                background: isPassed ? (isCurrent ? '#1565c0' : '#2e7d32') : '#ffffff',
-                                color: isPassed ? '#ffffff' : '#94a3b8',
-                                borderColor: isPassed ? (isCurrent ? '#0d47a1' : '#2e7d32') : '#cbd5e1',
-                                transform: isCurrent ? 'scale(1.15)' : 'scale(1)',
-                                boxShadow: isCurrent ? '0 0 0 4px rgba(21, 101, 192, 0.2)' : 'none',
+                                background: circleBg,
+                                color: circleColor,
+                                borderColor: circleBorder,
+                                transform: isCurrent ? 'scale(1.15)' : (isNext ? 'scale(1.08)' : 'scale(1)'),
+                                boxShadow: isCurrent ? '0 0 0 4px rgba(21, 101, 192, 0.25)' : (isNext ? '0 0 0 3px rgba(16, 185, 129, 0.25)' : 'none'),
+                                borderStyle: isNext ? 'dashed' : 'solid',
                               }}>
-                                {isPassed && !isCurrent ? '✓' : st.icon}
+                                {isDone ? '✓' : (isFutureLocked ? '🔒' : st.icon)}
                               </div>
                               <span style={{
                                 ...styles.stepLabelText,
-                                color: isPassed ? '#1e293b' : '#94a3b8',
-                                fontWeight: isCurrent ? 'bold' : 'normal',
+                                color: isDone || isCurrent ? '#0f172a' : (isNext ? '#059669' : '#94a3b8'),
+                                fontWeight: isCurrent || isNext ? 'bold' : 'normal',
                               }}>
-                                {st.label}
+                                {idx + 1}. {st.label}
                               </span>
                             </div>
                           );
@@ -668,16 +729,19 @@ const AdminDashboard = () => {
                       </div>
                     </div>
 
-                    {/* Operational Details Grid */}
+                    {/* Operational Details Grid with Universal Date Formatting */}
                     <div style={styles.opDetailsGrid}>
                       <div style={styles.opDetailCol}>
-                        <span style={styles.colLabel}>Aadhaar & Bank A/C:</span>
+                        <span style={styles.colLabel}>Scheduled Date & Time:</span>
                         <strong style={styles.colValue}>
-                          {b.bank_account || '00451010009823'} ({b.bank_ifsc || 'SBIN0001234'})
+                          📅 {formatAppDateWithDay(b.booking_date)} • {formatAppTime(b.slot_time)}
+                          <span style={{ fontSize: '11px', color: '#64748b', display: 'block' }}>
+                            ({getRelativeDateLabel(b.booking_date)})
+                          </span>
                         </strong>
                       </div>
                       <div style={styles.opDetailCol}>
-                        <span style={styles.colLabel}>Bill Number:</span>
+                        <span style={styles.colLabel}>Bill / J-Form Number:</span>
                         <strong style={styles.colValue}>
                           {b.bill_number ? (
                             <span style={{ color: '#2e7d32' }}>📄 {b.bill_number}</span>
@@ -687,7 +751,7 @@ const AdminDashboard = () => {
                         </strong>
                       </div>
                       <div style={styles.opDetailCol}>
-                        <span style={styles.colLabel}>Total MSP Amount:</span>
+                        <span style={styles.colLabel}>Total Mandi Payout:</span>
                         <strong style={{ ...styles.colValue, color: '#2e7d32', fontSize: '15px' }}>
                           ₹{parseFloat(b.payment_amount || b.procurement_amount || (parseFloat(b.quantity || 10) * parseFloat(b.msp_per_quintal || 2275))).toLocaleString('en-IN')}
                         </strong>
@@ -696,9 +760,9 @@ const AdminDashboard = () => {
                         <span style={styles.colLabel}>Bank UTR Reference:</span>
                         <strong style={styles.colValue}>
                           {b.utr_number ? (
-                            <span style={{ color: '#1565c0' }}>🏦 {b.utr_number} ({b.credited_date?.slice(0, 10) || 'Credited'})</span>
+                            <span style={{ color: '#1565c0' }}>🏦 {b.utr_number} ({formatAppDate(b.credited_date) || 'Credited'})</span>
                           ) : (
-                            <span style={{ color: '#90a4ae' }}>Assigned upon Credited</span>
+                            <span style={{ color: '#90a4ae' }}>Assigned on Step 7</span>
                           )}
                         </strong>
                       </div>
@@ -706,120 +770,70 @@ const AdminDashboard = () => {
 
                     {/* Officer Action Advancement Station */}
                     <div style={styles.actionStation}>
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
-                        <span style={styles.actionStationLabel}>⚙️ Officer Stage Actions:</span>
-                        
-                        <div style={{ display: 'flex', gap: '8px' }}>
-                          {/* Quick Advance Next Step Button */}
-                          {!isCompleted && nextStageObj && (
-                            <button
-                              onClick={() => handleQuickAdvanceNext(b)}
-                              style={styles.quickAdvanceBtn}
-                            >
-                              ⚡ Advance to {nextStageObj.icon} {nextStageObj.label} ➔
-                            </button>
-                          )}
+                      {isCompleted ? (
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          background: '#ecfdf5',
+                          border: '1px solid #10b981',
+                          borderRadius: '8px',
+                          padding: '12px 16px',
+                          width: '100%',
+                          flexWrap: 'wrap',
+                          gap: '10px',
+                        }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ fontSize: '20px' }}>🔒</span>
+                            <div>
+                              <strong style={{ color: '#065f46', fontSize: '14px' }}>
+                                Procurement Step 7/7 Completed & DBT Credited
+                              </strong>
+                              <p style={{ margin: 0, fontSize: '12px', color: '#047857' }}>
+                                Final ledger record is permanently locked and immutable. Bank UTR: {b.utr_number || 'Confirmed'}
+                              </p>
+                            </div>
+                          </div>
 
-                          {/* 1-Click Settle Button */}
-                          {!isCompleted && (
-                            <button
-                              onClick={() => handleAdvanceStage(b.id, 'PAYMENT_CREDITED')}
-                              style={styles.quickSettleBtn}
-                              title="Directly settle and credit DBT in 1 click"
-                            >
-                              ⚡ 1-Click Settle & Credit 🏦
-                            </button>
-                          )}
+                          <button
+                            onClick={() => setSelectedBookingForBill(b)}
+                            style={styles.printBillBtn}
+                          >
+                            📄 Print Official Mandi Receipt
+                          </button>
                         </div>
-                      </div>
+                      ) : (
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '10px', width: '100%' }}>
+                          <div>
+                            <span style={styles.actionStationLabel}>
+                              ⚙️ Officer Step Control:
+                            </span>
+                            <span style={{ fontSize: '13px', color: '#334155', marginLeft: '6px' }}>
+                              Current: <strong>Step {currentStageIdx + 1}/7 ({STAGES[currentStageIdx].label})</strong>
+                            </span>
+                          </div>
 
-                      {/* Explicit Stage Buttons */}
-                      <div style={styles.stageButtonGroup}>
-                        <button
-                          onClick={() => handleAdvanceStage(b.id, 'CHECKED_IN')}
-                          style={{
-                            ...styles.stageActionBtn,
-                            background: b.status === 'CHECKED_IN' ? '#1565c0' : '#fff',
-                            color: b.status === 'CHECKED_IN' ? '#fff' : '#1565c0',
-                            borderColor: '#1565c0',
-                          }}
-                        >
-                          1. Check In ✅
-                        </button>
+                          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                            {nextStageObj && (
+                              <button
+                                onClick={() => handleQuickAdvanceNext(b)}
+                                style={styles.quickAdvanceBtn}
+                              >
+                                ⚡ Advance to Step {currentStageIdx + 2}: {nextStageObj.icon} {nextStageObj.label} ➔
+                              </button>
+                            )}
 
-                        <button
-                          onClick={() => {
-                            setWeighModalBooking(b);
-                            setWeighQty(b.actual_quantity_quintals || b.quantity || '10');
-                            setWeighGrade(b.quality_grade || 'Grade A');
-                          }}
-                          style={{
-                            ...styles.stageActionBtn,
-                            background: b.status === 'WEIGHING' ? '#00838f' : '#fff',
-                            color: b.status === 'WEIGHING' ? '#fff' : '#00838f',
-                            borderColor: '#00838f',
-                          }}
-                        >
-                          2. Weigh Produce ⚖️
-                        </button>
-
-                        <button
-                          onClick={() => handleAdvanceStage(b.id, 'QUALITY_CHECK', { qualityGrade: 'Grade A' })}
-                          style={{
-                            ...styles.stageActionBtn,
-                            background: b.status === 'QUALITY_CHECK' ? '#7b1fa2' : '#fff',
-                            color: b.status === 'QUALITY_CHECK' ? '#fff' : '#7b1fa2',
-                            borderColor: '#7b1fa2',
-                          }}
-                        >
-                          3. Quality Passed 🔍
-                        </button>
-
-                        <button
-                          onClick={() => handleAdvanceStage(b.id, 'BILL_GENERATED')}
-                          style={{
-                            ...styles.stageActionBtn,
-                            background: b.status === 'BILL_GENERATED' ? '#512da8' : '#fff',
-                            color: b.status === 'BILL_GENERATED' ? '#fff' : '#512da8',
-                            borderColor: '#512da8',
-                          }}
-                        >
-                          4. Generate Bill 📄
-                        </button>
-
-                        <button
-                          onClick={() => handleAdvanceStage(b.id, 'PAYMENT_INITIATED')}
-                          style={{
-                            ...styles.stageActionBtn,
-                            background: b.status === 'PAYMENT_INITIATED' ? '#f57f17' : '#fff',
-                            color: b.status === 'PAYMENT_INITIATED' ? '#fff' : '#f57f17',
-                            borderColor: '#f57f17',
-                          }}
-                        >
-                          5. Initiate DBT 💰
-                        </button>
-
-                        <button
-                          onClick={() => handleAdvanceStage(b.id, 'PAYMENT_CREDITED')}
-                          style={{
-                            ...styles.stageActionBtn,
-                            background: isCompleted ? '#2e7d32' : '#e8f5e9',
-                            color: isCompleted ? '#fff' : '#2e7d32',
-                            borderColor: '#2e7d32',
-                            fontWeight: 'bold',
-                          }}
-                        >
-                          6. Mark Credited 🏦
-                        </button>
-
-                        {/* View / Print Bill Button */}
-                        <button
-                          onClick={() => setSelectedBookingForBill(b)}
-                          style={styles.printBillBtn}
-                        >
-                          📄 Print Mandi Receipt
-                        </button>
-                      </div>
+                            {b.bill_number && (
+                              <button
+                                onClick={() => setSelectedBookingForBill(b)}
+                                style={styles.printBillBtn}
+                              >
+                                📄 View Receipt
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 );
@@ -828,6 +842,7 @@ const AdminDashboard = () => {
           )}
         </div>
       )}
+
 
       {/* TAB 2: Procurement & Bills Register */}
       {activeTab === 'procurements' && (
@@ -878,8 +893,9 @@ const AdminDashboard = () => {
                         {p.bill_number}
                       </td>
                       <td style={styles.td}>
-                        {p.created_at ? new Date(p.created_at).toISOString().slice(0, 10) : p.booking_date}
+                        {formatAppDate(p.created_at || p.booking_date)}
                       </td>
+
                       <td style={styles.td}>
                         <strong>{p.farmer_name}</strong>
                         <div style={{ fontSize: '12px', color: '#607d8b' }}>{p.phone_number}</div>

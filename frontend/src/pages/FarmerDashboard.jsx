@@ -4,6 +4,7 @@ import { bookingService } from '../services/api';
 import { getSession, clearSession, getAdminSession } from '../services/auth';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
+import { formatAppDateWithDay, formatAppTime, getRelativeDateLabel, isSlotApproaching30Min } from '../utils/dateFormatter';
 
 const FarmerDashboard = () => {
   const navigate = useNavigate();
@@ -38,7 +39,7 @@ const FarmerDashboard = () => {
   const fetchBookings = async (farmerId) => {
     try {
       const response = await bookingService.getFarmerBookings(farmerId);
-      setBookings(response.data.bookings);
+      setBookings(response.data.bookings || []);
     } catch (error) {
       console.error('Failed to fetch bookings:', error);
       // Demo data if API fails
@@ -48,9 +49,9 @@ const FarmerDashboard = () => {
           crop_name: 'Wheat',
           estimated_quantity_quintals: '5.5',
           centre_name: 'Mandi Samiti Ludhiana',
-          booking_date: '2026-03-15',
+          booking_date: '2026-09-08',
           slot_time: '10:00',
-          token_number: 'KISAN-20260315-001',
+          token_number: 'KISAN-20260908-001',
           status: 'BOOKED'
         }
       ]);
@@ -185,49 +186,71 @@ const FarmerDashboard = () => {
           </div>
         ) : (
           <div style={styles.bookingList}>
-            {bookings.map((booking) => (
-              <div key={booking.id} style={styles.bookingCard}>
-                <div style={styles.bookingLeft}>
-                  <div style={styles.cropIcon}>
-                    🌾
+            {bookings.map((booking) => {
+              const isApproaching = isSlotApproaching30Min(booking.booking_date, booking.slot_time) && booking.status !== 'COMPLETED';
+              const relDate = getRelativeDateLabel(booking.booking_date);
+
+              return (
+                <div key={booking.id} style={styles.bookingCard}>
+                  <div style={styles.bookingLeft}>
+                    <div style={styles.cropIcon}>
+                      🌾
+                    </div>
+                    <div style={styles.bookingInfo}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                        <h4 style={{ ...styles.cropName, margin: 0 }}>
+                          {tCrop(booking.crop_name)} - {booking.estimated_quantity_quintals} {t('common.quintals')}
+                        </h4>
+                        {isApproaching && (
+                          <span style={{
+                            background: '#eff6ff',
+                            border: '1px solid #bfdbfe',
+                            color: '#1d4ed8',
+                            fontSize: '11px',
+                            fontWeight: 'bold',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                          }}>
+                            ⏰ 30-Min Alert Active
+                          </span>
+                        )}
+                      </div>
+                      <p style={styles.bookingDetail}>📍 {booking.centre_name}</p>
+                      <p style={styles.bookingDetail}>
+                        📅 {formatAppDateWithDay(booking.booking_date)} at {formatAppTime(booking.slot_time)} 
+                        {relDate ? <span style={{ color: '#64748b', marginLeft: '6px' }}>({relDate})</span> : null}
+                      </p>
+                      <p style={styles.tokenText}>
+                        🎫 {t('dashboard.tokenLabel')}: <strong>{booking.token_number}</strong>
+                      </p>
+                    </div>
                   </div>
-                  <div style={styles.bookingInfo}>
-                    <h4 style={styles.cropName}>
-                      {tCrop(booking.crop_name)} - {booking.estimated_quantity_quintals} {t('common.quintals')}
-                    </h4>
-                    <p style={styles.bookingDetail}>📍 {booking.centre_name}</p>
-                    <p style={styles.bookingDetail}>
-                      📅 {new Date(booking.booking_date).toLocaleDateString('en-IN')} at {booking.slot_time}
-                    </p>
-                    <p style={styles.tokenText}>
-                      🎫 {t('dashboard.tokenLabel')}: <strong>{booking.token_number}</strong>
-                    </p>
-                  </div>
-                </div>
-                
-                <div style={styles.bookingRight}>
-                  <span style={{
-                    ...styles.statusBadge,
-                    ...getStatusStyle(booking.status)
-                  }}>
-                    {tStatus(booking.status)}
-                  </span>
                   
-                  <button 
-                    onClick={() => navigate(`/farmer/track/${booking.id}`)}
-                    style={styles.trackBtn}
-                  >
-                    {t('dashboard.trackStatus')}
-                  </button>
+                  <div style={styles.bookingRight}>
+                    <span style={{
+                      ...styles.statusBadge,
+                      ...getStatusStyle(booking.status)
+                    }}>
+                      {tStatus(booking.status)}
+                    </span>
+                    
+                    <button 
+                      onClick={() => navigate(`/farmer/track/${booking.id}`)}
+                      style={styles.trackBtn}
+                    >
+                      {t('dashboard.trackStatus')}
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
     </div>
   );
 };
+
 
 const styles = {
   container: {

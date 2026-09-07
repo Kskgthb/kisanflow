@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useLanguage } from '../context/LanguageContext';
 import { bookingService } from '../services/api';
 import LanguageSelector from '../components/LanguageSelector';
+import { formatAppDate, formatAppDateWithDay, formatAppTime, getRelativeDateLabel, getSlotCountdown } from '../utils/dateFormatter';
 
 const STAGE_KEYS = [
   'BOOKED',
@@ -20,6 +21,8 @@ const TrackBooking = () => {
   const { t, tCrop, tStatus } = useLanguage();
   const [booking, setBooking] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [reminderLoading, setReminderLoading] = useState(false);
+  const [reminderSentMessage, setReminderSentMessage] = useState('');
   // Track the highest stage index reached so UI can never go backwards
   const highestStageRef = React.useRef(0);
   const [procurementStatus, setProcurementStatus] = useState({
@@ -55,6 +58,21 @@ const TrackBooking = () => {
         completed: idx <= targetIdx,
       })),
     }));
+  };
+
+  const handleSendReminderSMS = async () => {
+    if (!booking?.id) return;
+    setReminderLoading(true);
+    try {
+      await bookingService.sendReminder(booking.id);
+      setReminderSentMessage('✅ 30-Minute Reminder SMS dispatched via Twilio!');
+      setTimeout(() => setReminderSentMessage(''), 5000);
+    } catch (err) {
+      setReminderSentMessage(`❌ Reminder error: ${err.response?.data?.error || err.message}`);
+      setTimeout(() => setReminderSentMessage(''), 5000);
+    } finally {
+      setReminderLoading(false);
+    }
   };
 
   useEffect(() => {
@@ -183,7 +201,7 @@ const TrackBooking = () => {
               {booking.creditedDate && (
                 <div>
                   <span style={{ opacity: 0.8 }}>✅ {t('paymentHistory.credited')}</span>
-                  <strong style={{ display: 'block' }}>{booking.creditedDate}</strong>
+                  <strong style={{ display: 'block' }}>{formatAppDate(booking.creditedDate)}</strong>
                 </div>
               )}
             </div>
@@ -197,6 +215,73 @@ const TrackBooking = () => {
         </div>
       ) : booking && (
         <>
+          {/* ⏰ 30-MINUTE ARRIVAL REMINDER & TWILIO ALERT CARD */}
+          {!isCompleted && (
+            <div style={{
+              background: 'linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%)',
+              border: '1px solid #bfdbfe',
+              borderRadius: '12px',
+              padding: '16px 20px',
+              marginBottom: '20px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '12px',
+              boxShadow: '0 2px 8px rgba(37, 99, 235, 0.08)',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '32px' }}>⏰</span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <strong style={{ color: '#1e40af', fontSize: '15px' }}>
+                      30-Minute Mandi Arrival Alert
+                    </strong>
+                    <span style={{
+                      background: '#2563eb',
+                      color: 'white',
+                      fontSize: '11px',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      fontWeight: 'bold',
+                    }}>
+                      {getSlotCountdown(booking.bookingDate, booking.slotTime) || 'Scheduled'}
+                    </span>
+                  </div>
+                  <p style={{ margin: '3px 0 0', fontSize: '13px', color: '#3b82f6' }}>
+                    Please report to {booking.centreName} gate with produce, Aadhaar card & bank passbook.
+                  </p>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                {reminderSentMessage && (
+                  <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#1e40af' }}>
+                    {reminderSentMessage}
+                  </span>
+                )}
+                <button
+                  onClick={handleSendReminderSMS}
+                  disabled={reminderLoading}
+                  style={{
+                    padding: '8px 16px',
+                    background: '#1d4ed8',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontWeight: 'bold',
+                    fontSize: '13px',
+                    cursor: 'pointer',
+                    boxShadow: '0 2px 6px rgba(29, 78, 216, 0.3)',
+                    transition: 'all 0.2s',
+                  }}
+                >
+                  {reminderLoading ? '⏳ Sending...' : '🔔 Send 30-Min Reminder SMS'}
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Booking Info Card */}
           <div style={styles.infoCard}>
             <div style={styles.tokenSection}>
@@ -218,7 +303,12 @@ const TrackBooking = () => {
               </div>
               <div style={styles.detailItem}>
                 <span>{t('trackBooking.dateTime')}</span>
-                <strong>{booking.bookingDate} at {booking.slotTime}</strong>
+                <strong>
+                  {formatAppDateWithDay(booking.bookingDate)} at {formatAppTime(booking.slotTime)}
+                  <span style={{ fontSize: '11px', color: '#64748b', display: 'block', fontWeight: 'normal' }}>
+                    ({getRelativeDateLabel(booking.bookingDate)})
+                  </span>
+                </strong>
               </div>
             </div>
           </div>
@@ -301,7 +391,7 @@ const TrackBooking = () => {
                   Live Real-Time Procurement Tracker
                 </h4>
                 <p style={{ margin: 0, fontSize: '13px', color: '#607d8b' }}>
-                  Stages are processed and verified directly by Mandi Officers at the intake gate.
+                  Stages are processed sequentially and verified directly by Mandi Officers at the intake gate.
                 </p>
               </div>
             </div>
@@ -318,7 +408,7 @@ const TrackBooking = () => {
               fontWeight: 'bold',
             }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#2e7d32', display: 'inline-block' }} />
-              Live Synced
+              Live Synced (3s)
             </div>
           </div>
         </>
@@ -326,6 +416,7 @@ const TrackBooking = () => {
     </div>
   );
 };
+
 
 const styles = {
   container: {

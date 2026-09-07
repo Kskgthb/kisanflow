@@ -4,6 +4,7 @@ import { bookingService } from '../services/api';
 import { getSession } from '../services/auth';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
+import { formatAppDate, formatAppDateWithDay, formatAppTime, getRelativeDateLabel } from '../utils/dateFormatter';
 
 const BookSlot = () => {
   const navigate = useNavigate();
@@ -14,13 +15,28 @@ const BookSlot = () => {
     { id: 2, name: 'Paddy', msp: 2183 },
     { id: 3, name: 'Cotton', msp: 7020 },
   ]);
+
+  // Compute helper dates
+  const getDateOffset = (days) => {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return d.toISOString().split('T')[0];
+  };
+
+  const quickDates = [
+    { label: 'Tomorrow (1 Day After)', sub: formatAppDate(getDateOffset(1)), value: getDateOffset(1) },
+    { label: 'In 2 Days (2 Days After)', sub: formatAppDate(getDateOffset(2)), value: getDateOffset(2) },
+    { label: 'In 3 Days', sub: formatAppDate(getDateOffset(3)), value: getDateOffset(3) },
+  ];
+
   const [formData, setFormData] = useState({
     centreId: '',
     cropId: '',
-    bookingDate: '',
+    bookingDate: quickDates[0].value, // Default to Tomorrow
     slotTime: '',
     quantity: '',
   });
+
   const [slots, setSlots] = useState([]);
   const [loading, setLoading] = useState(false);
   const [bookingSuccess, setBookingSuccess] = useState(null);
@@ -32,7 +48,12 @@ const BookSlot = () => {
   const fetchCentres = async () => {
     try {
       const response = await bookingService.getCentres();
-      setCentres(response.data.centres || []);
+      const list = response.data.centres || [];
+      setCentres(list);
+      if (list.length > 0 && !formData.centreId) {
+        setFormData((prev) => ({ ...prev, centreId: list[0].id.toString() }));
+        fetchSlots(list[0].id, formData.bookingDate || quickDates[0].value);
+      }
     } catch (error) {
       console.error('Failed to fetch centres:', error);
     }
@@ -50,13 +71,20 @@ const BookSlot = () => {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+    setFormData((prev) => ({ ...prev, [name]: value }));
 
     if (name === 'centreId' || name === 'bookingDate') {
       fetchSlots(
         name === 'centreId' ? value : formData.centreId,
         name === 'bookingDate' ? value : formData.bookingDate
       );
+    }
+  };
+
+  const handleSelectQuickDate = (dateVal) => {
+    setFormData((prev) => ({ ...prev, bookingDate: dateVal, slotTime: '' }));
+    if (formData.centreId) {
+      fetchSlots(formData.centreId, dateVal);
     }
   };
 
@@ -86,11 +114,13 @@ const BookSlot = () => {
     }
   };
 
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const minDate = tomorrow.toISOString().split('T')[0];
+  const minDate = getDateOffset(1);
 
   if (bookingSuccess) {
+    const bookingDateFormatted = formatAppDateWithDay(formData.bookingDate);
+    const relativeLabel = getRelativeDateLabel(formData.bookingDate);
+    const timeFormatted = formatAppTime(formData.slotTime);
+
     return (
       <div style={styles.container}>
         <div style={styles.card}>
@@ -111,6 +141,25 @@ const BookSlot = () => {
             <div style={{ fontSize: '24px', fontWeight: 'bold', color: '#1a237e', margin: '6px 0' }}>
               {bookingSuccess.tokenNumber}
             </div>
+
+            {/* Scheduled Date & Time Details */}
+            <div style={{
+              background: '#f8fafc',
+              border: '1px solid #e2e8f0',
+              borderRadius: '8px',
+              padding: '10px 14px',
+              margin: '12px 0',
+              fontSize: '14px',
+              color: '#334155',
+            }}>
+              <div style={{ fontWeight: 'bold', color: '#0f172a' }}>
+                📅 Scheduled: {bookingDateFormatted} • {timeFormatted}
+              </div>
+              <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                {relativeLabel ? `(${relativeLabel})` : ''} • Notification & Reminder Active
+              </div>
+            </div>
+
             <div style={{ display: 'flex', justifyContent: 'space-around', marginTop: '12px' }}>
               <div>
                 <span style={{ fontSize: '12px', color: '#777' }}>{t('bookSlot.queuePosition')}</span>
@@ -127,23 +176,31 @@ const BookSlot = () => {
             </div>
           </div>
 
-          {/* SMS Notification Banner */}
+          {/* Twilio SMS Notification Banner */}
           <div style={styles.smsBox}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <span style={{ fontSize: '20px' }}>📱</span>
                 <strong style={{ color: '#1565c0', fontSize: '14px' }}>
-                  {t('bookSlot.smsSentTo', { phone: bookingSuccess.smsPhone ? `+91 ${bookingSuccess.smsPhone}` : 'Registered Mobile' })}
+                  Twilio SMS Dispatched to {bookingSuccess.smsPhone ? `+91 ${bookingSuccess.smsPhone}` : 'Registered Mobile'}
                 </strong>
               </div>
+              <span style={{ fontSize: '11px', background: '#e0f2fe', color: '#0284c7', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                30-Min Reminder Scheduled
+              </span>
             </div>
             <pre style={styles.smsPreview}>
-              {bookingSuccess.smsMessage || `Token: ${bookingSuccess.tokenNumber}\nQueue Position: #${bookingSuccess.queuePosition}\nWaiting Time: ~${bookingSuccess.estimatedWaitMinutes} Mins`}
+              {`🌾 KisanFlow Alert: Namaste ${getSession()?.farmer?.fullName || 'Kisan'} ji!\n` +
+               `📌 Token: ${bookingSuccess.tokenNumber}\n` +
+               `🔢 Queue Position: #${bookingSuccess.queuePosition || 1}\n` +
+               `📅 Date: ${bookingDateFormatted} (${timeFormatted})\n` +
+               `🏢 Mandi: ${centres.find(c => c.id === parseInt(formData.centreId))?.name || 'Mandi Centre'}\n` +
+               `⏱️ Waiting: ~${bookingSuccess.estimatedWaitMinutes || 10} Mins`}
             </pre>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
               <a
-                href={`https://wa.me/91${bookingSuccess.smsPhone || ''}?text=${encodeURIComponent(bookingSuccess.smsMessage || '')}`}
+                href={`https://wa.me/91${bookingSuccess.smsPhone || ''}?text=${encodeURIComponent(`🌾 KisanFlow Token: ${bookingSuccess.tokenNumber} | Date: ${bookingDateFormatted} (${timeFormatted}) | Queue #${bookingSuccess.queuePosition || 1}`)}`}
                 target="_blank"
                 rel="noreferrer"
                 style={styles.whatsappBtn}
@@ -151,7 +208,7 @@ const BookSlot = () => {
                 {t('bookSlot.openWhatsApp')}
               </a>
               <a
-                href={`sms:+91${bookingSuccess.smsPhone || ''}?body=${encodeURIComponent(bookingSuccess.smsMessage || '')}`}
+                href={`sms:+91${bookingSuccess.smsPhone || ''}?body=${encodeURIComponent(`KisanFlow Token ${bookingSuccess.tokenNumber} Date ${bookingDateFormatted}`)}`}
                 style={styles.phoneSmsBtn}
               >
                 {t('bookSlot.openSms')}
@@ -227,42 +284,77 @@ const BookSlot = () => {
             </select>
           </div>
 
+          {/* Quick Date Selection Chips (1 Day After / 2 Days After / 3 Days) */}
           <div style={styles.formGroup}>
-            <label style={styles.label}>{t('bookSlot.selectDate')}</label>
-            <input
-              type="date"
-              name="bookingDate"
-              value={formData.bookingDate}
-              onChange={handleChange}
-              min={minDate}
-              style={styles.input}
-              required
-            />
+            <label style={styles.label}>📅 {t('bookSlot.selectDate')} (Realistic Slot Scheduling):</label>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '8px', marginBottom: '10px' }}>
+              {quickDates.map((qd) => {
+                const isSelected = formData.bookingDate === qd.value;
+                return (
+                  <button
+                    key={qd.value}
+                    type="button"
+                    onClick={() => handleSelectQuickDate(qd.value)}
+                    style={{
+                      padding: '10px 8px',
+                      borderRadius: '8px',
+                      border: isSelected ? '2px solid #667eea' : '1px solid #cbd5e1',
+                      background: isSelected ? '#ede9fe' : '#f8fafc',
+                      color: isSelected ? '#4338ca' : '#334155',
+                      fontWeight: isSelected ? 'bold' : '500',
+                      cursor: 'pointer',
+                      textAlign: 'center',
+                      transition: 'all 0.2s',
+                    }}
+                  >
+                    <div style={{ fontSize: '13px' }}>{qd.label}</div>
+                    <div style={{ fontSize: '11px', opacity: 0.8, marginTop: '2px' }}>{qd.sub}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', color: '#64748b' }}>Or select calendar date:</span>
+              <input
+                type="date"
+                name="bookingDate"
+                value={formData.bookingDate}
+                onChange={handleChange}
+                min={minDate}
+                style={{ ...styles.input, padding: '8px 12px', width: 'auto', flex: 1 }}
+                required
+              />
+            </div>
           </div>
 
           {slots.length > 0 && (
             <div style={styles.formGroup}>
-              <label style={styles.label}>{t('bookSlot.availableSlots')}</label>
+              <label style={styles.label}>⏱️ {t('bookSlot.availableSlots')} ({formatAppDate(formData.bookingDate)}):</label>
               <div style={styles.slotGrid}>
-                {slots.map((slot) => (
-                  <button
-                    key={slot.time}
-                    type="button"
-                    onClick={() => setFormData({ ...formData, slotTime: slot.time })}
-                    style={{
-                      ...styles.slotBtn,
-                      background: formData.slotTime === slot.time ? '#667eea' : 'white',
-                      color: formData.slotTime === slot.time ? 'white' : '#333',
-                      cursor: slot.isAvailable ? 'pointer' : 'not-allowed',
-                      opacity: slot.isAvailable ? 1 : 0.5,
-                      border: formData.slotTime === slot.time ? '2px solid #667eea' : '1px solid #ddd',
-                      fontWeight: formData.slotTime === slot.time ? 'bold' : 'normal',
-                    }}
-                    disabled={!slot.isAvailable}
-                  >
-                    {slot.time}
-                  </button>
-                ))}
+                {slots.map((slot) => {
+                  const isSelected = formData.slotTime === slot.time;
+                  return (
+                    <button
+                      key={slot.time}
+                      type="button"
+                      onClick={() => setFormData((prev) => ({ ...prev, slotTime: slot.time }))}
+                      style={{
+                        ...styles.slotBtn,
+                        background: isSelected ? '#667eea' : '#ffffff',
+                        color: isSelected ? 'white' : '#1e293b',
+                        cursor: slot.isAvailable ? 'pointer' : 'not-allowed',
+                        opacity: slot.isAvailable ? 1 : 0.45,
+                        border: isSelected ? '2px solid #667eea' : '1px solid #cbd5e1',
+                        fontWeight: isSelected ? 'bold' : '600',
+                        boxShadow: isSelected ? '0 4px 10px rgba(102, 126, 234, 0.3)' : 'none',
+                      }}
+                      disabled={!slot.isAvailable}
+                    >
+                      {formatAppTime(slot.time)}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           )}
@@ -282,7 +374,7 @@ const BookSlot = () => {
             />
           </div>
 
-          <button type="submit" style={styles.submitBtn} disabled={loading || !formData.slotTime}>
+          <button type="submit" style={styles.submitBtn} disabled={loading || !formData.slotTime || !formData.bookingDate}>
             {loading ? t('bookSlot.submittingBtn') : t('bookSlot.submitBtn')}
           </button>
         </form>
@@ -290,6 +382,7 @@ const BookSlot = () => {
     </div>
   );
 };
+
 
 const styles = {
   container: {

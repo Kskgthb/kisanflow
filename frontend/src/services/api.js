@@ -40,6 +40,7 @@ export const bookingService = {
   createBooking: (data) => api.post('/bookings', data),
   getFarmerBookings: (farmerId) => api.get(`/bookings/farmer/${farmerId}`),
   getBookingById: (id) => api.get(`/bookings/${id}`),
+  sendReminder: (id) => api.post(`/bookings/${id}/send-reminder`),
   updateBookingStatus: async (id, status) => {
     try {
       return await api.patch(`/bookings/${id}/status`, { status });

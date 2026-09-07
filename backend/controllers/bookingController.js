@@ -1,9 +1,9 @@
 const db = require('../config/database');
-const { sendSMS } = require('../services/smsService');
+const { sendSMS, sendBookingConfirmationSMS, sendSlotReminderSMS } = require('../services/smsService');
 
 exports.getCentres = async (req, res) => {
   try {
-    const result = await db.query('SELECT * FROM procurement_centres WHERE is_active = TRUE');
+    const result = await db.query('SELECT * FROM procurement_centres WHERE is_active = TRUE ORDER BY name ASC');
     res.json({ centres: result.rows });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch centres' });
@@ -13,7 +13,7 @@ exports.getCentres = async (req, res) => {
 exports.getAvailableSlots = async (req, res) => {
   try {
     const { centreId, date } = req.params;
-    const timeSlots = ['09:00', '10:00', '11:00', '12:00', '13:00', '14:00', '15:00', '16:00'];
+    const timeSlots = ['09:00', '10:30', '12:00', '13:30', '15:00', '16:30'];
     
     const bookedResult = await db.query(
       `SELECT slot_time, COALESCE(SUM(estimated_quantity_quintals), 0) as booked_qty
@@ -25,12 +25,14 @@ exports.getAvailableSlots = async (req, res) => {
     
     const bookedMap = {};
     bookedResult.rows.forEach(row => {
-      bookedMap[row.slot_time] = parseFloat(row.booked_qty);
+      // Normalize time format e.g. "09:00:00" -> "09:00"
+      const t = String(row.slot_time).slice(0, 5);
+      bookedMap[t] = parseFloat(row.booked_qty);
     });
     
     const slots = timeSlots.map(time => ({
       time,
-      isAvailable: !(bookedMap[time] >= 60) // 60 quintals per slot capacity
+      isAvailable: !(bookedMap[time] >= 60) // 60 quintals capacity per slot batch
     }));
     
     res.json({ slots });
@@ -70,30 +72,34 @@ exports.createBooking = async (req, res) => {
       [centreId, result.rows[0].id, queuePosition]
     );
 
-    // 4. Fetch Farmer & Centre details for SMS
+    // 4. Fetch Farmer, Centre & Crop details for Twilio SMS
     const farmerRes = await db.query('SELECT full_name, phone_number FROM farmers WHERE id = $1', [farmerId]);
     const centreRes = await db.query('SELECT name, district FROM procurement_centres WHERE id = $1', [centreId]);
+    const cropRes = await db.query('SELECT name FROM crops WHERE id = $1', [cropId]);
     
     const farmer = farmerRes.rows[0] || {};
     const centre = centreRes.rows[0] || {};
+    const crop = cropRes.rows[0] || {};
     const farmerPhone = farmer.phone_number;
     const farmerName = farmer.full_name || 'Kisan';
     const centreName = centre.name || 'Procurement Centre';
+    const cropName = crop.name || 'Grain';
 
-    // 5. Compose and Send SMS
-    const smsMessage = `🌾 KisanFlow Alert: Namaste ${farmerName} ji! Aapka slot book ho gaya hai.
-📌 Token No: ${tokenNumber}
-🔢 Queue Position: #${queuePosition}
-⏱️ Waiting Time: ~${estimatedWaitMinutes} Mins
-🏢 Mandi: ${centreName}
-📅 Date: ${bookingDate} (${slotTime})
-Dhanyawad!`;
-
+    // 5. Compose and Send Twilio Booking Confirmation SMS
+    let smsResult = null;
     if (farmerPhone) {
-      await sendSMS({
-        to: farmerPhone,
-        message: smsMessage,
-        farmerId: farmerId,
+      smsResult = await sendBookingConfirmationSMS({
+        phone: farmerPhone,
+        farmerName,
+        tokenNumber,
+        queuePosition,
+        waitMinutes: estimatedWaitMinutes,
+        centreName,
+        date: bookingDate,
+        slotTime,
+        cropName,
+        quantity,
+        farmerId,
       });
     }
     
@@ -105,13 +111,59 @@ Dhanyawad!`;
       estimatedWaitMinutes,
       smsSent: !!farmerPhone,
       smsPhone: farmerPhone,
-      smsMessage,
+      smsResult,
     });
   } catch (error) {
     console.error('Booking error:', error);
     res.status(500).json({ error: error.message || 'Failed to create booking' });
   }
 };
+
+/**
+ * Send 30-Minute Arrival Reminder SMS
+ */
+exports.sendSlotReminder = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const bookingRes = await db.query(
+      `SELECT sb.*, f.full_name as farmer_name, f.phone_number, pc.name as centre_name, c.name as crop_name
+       FROM slot_bookings sb
+       JOIN farmers f ON sb.farmer_id = f.id
+       JOIN procurement_centres pc ON sb.centre_id = pc.id
+       JOIN crops c ON sb.crop_id = c.id
+       WHERE sb.id = $1`,
+      [id]
+    );
+
+    if (bookingRes.rows.length === 0) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+
+    const b = bookingRes.rows[0];
+    const dateFormatted = b.booking_date ? new Date(b.booking_date).toISOString().slice(0, 10) : 'Today';
+
+    const smsRes = await sendSlotReminderSMS({
+      phone: b.phone_number,
+      farmerName: b.farmer_name,
+      tokenNumber: b.token_number,
+      centreName: b.centre_name,
+      date: dateFormatted,
+      slotTime: b.slot_time,
+      minutesLeft: 30,
+      farmerId: b.farmer_id,
+    });
+
+    res.json({
+      success: true,
+      message: '30-minute reminder SMS dispatched successfully!',
+      smsResult: smsRes,
+    });
+  } catch (error) {
+    console.error('Send slot reminder error:', error);
+    res.status(500).json({ error: error.message || 'Failed to send slot reminder' });
+  }
+};
+
 
 exports.getFarmerBookings = async (req, res) => {
   try {
