@@ -58,10 +58,10 @@ const AdminDashboard = () => {
       return;
     }
     setAdminUser(session.admin);
-    if (session.admin.centreId) {
-      setSelectedCentre(session.admin.centreId.toString());
-    }
+    // Keep 'all' as default so officer sees statewide new bookings immediately
+    setSelectedCentre('all');
   }, [navigate]);
+
 
   // Load centres on mount
   useEffect(() => {

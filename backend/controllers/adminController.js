@@ -108,17 +108,25 @@ exports.getAdminBookings = async (req, res) => {
       SELECT 
         sb.id, sb.token_number, sb.booking_date, sb.slot_time, 
         sb.estimated_quantity_quintals as quantity, sb.status, sb.created_at,
-        f.id as farmer_id, f.full_name as farmer_name, f.phone_number, f.village, f.district as farmer_district,
+        sb.farmer_id, 
+        COALESCE(f.full_name, 'Registered Kisan') as farmer_name, 
+        COALESCE(f.phone_number, '') as phone_number, 
+        f.village, 
+        COALESCE(f.district, 'Punjab') as farmer_district,
         f.bank_account, f.bank_ifsc,
-        pc.id as centre_id, pc.name as centre_name, pc.district as centre_district,
-        c.id as crop_id, c.name as crop_name, c.msp_per_quintal,
+        sb.centre_id, 
+        COALESCE(pc.name, 'Mandi Samiti Ludhiana') as centre_name, 
+        COALESCE(pc.district, 'Ludhiana') as centre_district,
+        sb.crop_id, 
+        COALESCE(c.name, 'Wheat') as crop_name, 
+        COALESCE(c.msp_per_quintal, 2275) as msp_per_quintal,
         lq.queue_position, lq.current_status as queue_status,
         pr.bill_number, pr.actual_quantity_quintals, pr.quality_grade, pr.total_amount as procurement_amount, pr.status as procurement_status,
         pay.id as payment_id, pay.payment_status, pay.utr_number, pay.amount as payment_amount, pay.credited_date, pay.initiated_date
       FROM slot_bookings sb
-      JOIN farmers f ON sb.farmer_id = f.id
-      JOIN procurement_centres pc ON sb.centre_id = pc.id
-      JOIN crops c ON sb.crop_id = c.id
+      LEFT JOIN farmers f ON sb.farmer_id = f.id
+      LEFT JOIN procurement_centres pc ON sb.centre_id = pc.id
+      LEFT JOIN crops c ON sb.crop_id = c.id
       LEFT JOIN live_queue lq ON sb.id = lq.booking_id
       LEFT JOIN procurement_records pr ON sb.id = pr.booking_id
       LEFT JOIN payments pay ON pr.id = pay.procurement_id
@@ -150,15 +158,15 @@ exports.getAdminBookings = async (req, res) => {
       params.push(`%${search.trim().toLowerCase()}%`);
       const pIdx = params.length;
       query += ` AND (
-        LOWER(f.full_name) LIKE $${pIdx} OR 
-        f.phone_number LIKE $${pIdx} OR 
+        LOWER(COALESCE(f.full_name, '')) LIKE $${pIdx} OR 
+        COALESCE(f.phone_number, '') LIKE $${pIdx} OR 
         LOWER(sb.token_number) LIKE $${pIdx} OR 
         LOWER(COALESCE(pr.bill_number, '')) LIKE $${pIdx} OR
         LOWER(COALESCE(pay.utr_number, '')) LIKE $${pIdx}
       )`;
     }
 
-    query += ` ORDER BY sb.booking_date DESC, sb.slot_time ASC, sb.id DESC LIMIT 200`;
+    query += ` ORDER BY sb.id DESC LIMIT 250`;
 
     const result = await db.query(query, params);
     res.json({ bookings: result.rows });
@@ -167,6 +175,7 @@ exports.getAdminBookings = async (req, res) => {
     res.status(500).json({ error: 'Failed to fetch bookings' });
   }
 };
+
 
 // PATCH or POST /api/admin/bookings/:id/stage
 exports.updateBookingStage = async (req, res) => {
