@@ -189,20 +189,87 @@ const BookSlot = () => {
                 30-Min Reminder Scheduled
               </span>
             </div>
-            <pre style={styles.smsPreview}>
-              {`🌾 KisanFlow Alert: Namaste ${getSession()?.farmer?.fullName || 'Kisan'} ji!\n` +
-               `📌 Token: ${bookingSuccess.tokenNumber}\n` +
-               `🔢 Queue Position: #${bookingSuccess.queuePosition || 1}\n` +
-               `📅 Date: ${bookingDateFormatted} (${timeFormatted})\n` +
-               `🏢 Mandi: ${centres.find(c => c.id === parseInt(formData.centreId))?.name || 'Mandi Centre'}\n` +
-               `⏱️ Waiting: ~${bookingSuccess.estimatedWaitMinutes || 10} Mins`}
-            </pre>
+            
+            {/* Interactive Pre-Filled Message Box for Guaranteed Copy & Paste */}
+            <div style={{
+              background: '#f8fafc',
+              border: '2px solid #22c55e',
+              borderRadius: '10px',
+              padding: '12px',
+              marginTop: '15px',
+              textAlign: 'left'
+            }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                <span style={{ fontSize: '13px', fontWeight: 'bold', color: '#15803d' }}>
+                  💬 Pre-Filled Booking Alert Message:
+                </span>
+                <span style={{ fontSize: '11px', background: '#dcfce7', color: '#166534', padding: '2px 8px', borderRadius: '12px', fontWeight: 'bold' }}>
+                  Ready to Copy
+                </span>
+              </div>
+              
+              <textarea
+                readOnly
+                id="kisanflow-msg-text"
+                rows={7}
+                style={{
+                  width: '100%',
+                  fontSize: '13px',
+                  fontFamily: 'monospace',
+                  padding: '10px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  background: '#ffffff',
+                  color: '#0f172a',
+                  resize: 'none',
+                  outline: 'none',
+                  boxSizing: 'border-box'
+                }}
+                value={
+                  `◈ KisanFlow Alert: Namaste ${getSession()?.farmer?.fullName || 'Sumit Kumar'} ji! Aapka slot book ho gaya hai.\n` +
+                  `◈ Token No: ${bookingSuccess.tokenNumber}\n` +
+                  `◈ Queue Position: #${bookingSuccess.queuePosition || 1}\n` +
+                  `◈ Waiting Time: ${bookingSuccess.estimatedWaitMinutes || 10} Mins\n` +
+                  `◈ Mandi: ${centres.find(c => c.id === parseInt(formData.centreId))?.name || 'Anaj Mandi Amritsar'}\n` +
+                  `◈ Date: ${bookingDateFormatted} (${timeFormatted})\n` +
+                  `Dhanyawad!`
+                }
+              />
 
-            <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const txtArea = document.getElementById('kisanflow-msg-text');
+                    if (txtArea) {
+                      txtArea.select();
+                      txtArea.setSelectionRange(0, 99999);
+                      document.execCommand('copy');
+                      alert('✅ Message Copied! Open WhatsApp and Paste (Long Press -> Paste).');
+                    }
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: '10px',
+                    background: '#16a34a',
+                    color: '#ffffff',
+                    border: 'none',
+                    borderRadius: '6px',
+                    fontSize: '13px',
+                    fontWeight: 'bold',
+                    cursor: 'pointer'
+                  }}
+                >
+                  📋 Tap Here to Copy Full Text
+                </button>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
               {(() => {
                 const farmerName = getSession()?.farmer?.fullName || 'Sumit Kumar';
                 const centreName = centres.find(c => c.id === parseInt(formData.centreId))?.name || 'Anaj Mandi Amritsar';
-                const formattedWait = formatWaitTime(bookingSuccess.estimatedWaitMinutes || 10);
+                const formattedWait = `${bookingSuccess.estimatedWaitMinutes || 10} Mins`;
                 const phoneNum = String(bookingSuccess.smsPhone || getSession()?.farmer?.phone_number || '').replace(/[^0-9]/g, '').slice(-10);
 
                 const exactMessage = 
@@ -218,72 +285,25 @@ const BookSlot = () => {
                 const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
                 
                 const waUrl = `https://api.whatsapp.com/send?phone=${phoneNum ? '91' + phoneNum : ''}&text=${encodedMsg}`;
-                const waMeUrl = `https://wa.me/${phoneNum ? '91' + phoneNum : ''}?text=${encodedMsg}`;
                 const smsUrl = `sms:${phoneNum ? '+91' + phoneNum : ''}${isIOS ? '&' : '?'}body=${encodedMsg}`;
 
-                const copyAndOpenWhatsApp = (e) => {
-                  try {
-                    if (navigator.clipboard) {
-                      navigator.clipboard.writeText(exactMessage);
-                    }
-                  } catch (err) {}
-                };
-
                 return (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
-                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                      <a
-                        href={waUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={copyAndOpenWhatsApp}
-                        style={{ ...styles.whatsappBtn, flex: 1 }}
-                      >
-                        📱 {t('bookSlot.openWhatsApp')} (App)
-                      </a>
-                      <a
-                        href={waMeUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={copyAndOpenWhatsApp}
-                        style={{ ...styles.whatsappBtn, background: '#25D366', flex: 1 }}
-                      >
-                        💬 Open WhatsApp (Web/wa.me)
-                      </a>
-                      <a
-                        href={smsUrl}
-                        style={{ ...styles.phoneSmsBtn, flex: 1 }}
-                      >
-                        📩 {t('bookSlot.openSms')}
-                      </a>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        if (navigator.clipboard) {
-                          navigator.clipboard.writeText(exactMessage);
-                          alert('📋 Message text copied to clipboard! You can paste (Long Press -> Paste) directly in WhatsApp or SMS.');
-                        }
-                      }}
-                      style={{
-                        padding: '10px',
-                        background: '#f8fafc',
-                        border: '1px dashed #64748b',
-                        borderRadius: '8px',
-                        color: '#334155',
-                        fontSize: '13px',
-                        fontWeight: 'bold',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '6px',
-                        marginTop: '4px'
-                      }}
+                  <>
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{ ...styles.whatsappBtn, flex: 1, textAlign: 'center' }}
                     >
-                      📋 Copy Full Booking Message Text (Instant Paste)
-                    </button>
-                  </div>
+                      📱 {t('bookSlot.openWhatsApp')}
+                    </a>
+                    <a
+                      href={smsUrl}
+                      style={{ ...styles.phoneSmsBtn, flex: 1, textAlign: 'center' }}
+                    >
+                      📩 {t('bookSlot.openSms')}
+                    </a>
+                  </>
                 );
               })()}
             </div>
