@@ -199,20 +199,48 @@ const BookSlot = () => {
             </pre>
 
             <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
-              <a
-                href={`https://wa.me/91${bookingSuccess.smsPhone || ''}?text=${encodeURIComponent(`🌾 KisanFlow Token: ${bookingSuccess.tokenNumber} | Date: ${bookingDateFormatted} (${timeFormatted}) | Queue #${bookingSuccess.queuePosition || 1}`)}`}
-                target="_blank"
-                rel="noreferrer"
-                style={styles.whatsappBtn}
-              >
-                {t('bookSlot.openWhatsApp')}
-              </a>
-              <a
-                href={`sms:+91${bookingSuccess.smsPhone || ''}?body=${encodeURIComponent(`KisanFlow Token ${bookingSuccess.tokenNumber} Date ${bookingDateFormatted}`)}`}
-                style={styles.phoneSmsBtn}
-              >
-                {t('bookSlot.openSms')}
-              </a>
+              {(() => {
+                const farmerName = getSession()?.farmer?.fullName || 'Sumit Kumar';
+                const centreName = centres.find(c => c.id === parseInt(formData.centreId))?.name || 'Anaj Mandi Amritsar';
+                const formattedWait = formatWaitTime(bookingSuccess.estimatedWaitMinutes || 10);
+                const phoneNum = String(bookingSuccess.smsPhone || getSession()?.farmer?.phone_number || '').replace(/[^0-9]/g, '').slice(-10);
+
+                const exactMessage = 
+                  `◈ KisanFlow Alert: Namaste ${farmerName} ji! Aapka slot book ho gaya hai.\n` +
+                  `◈ Token No: ${bookingSuccess.tokenNumber}\n` +
+                  `◈ Queue Position: #${bookingSuccess.queuePosition || 1}\n` +
+                  `◈ Waiting Time: ${formattedWait}\n` +
+                  `◈ Mandi: ${centreName}\n` +
+                  `◈ Date: ${bookingDateFormatted} (${timeFormatted})\n` +
+                  `Dhanyawad!`;
+
+                const encodedMsg = encodeURIComponent(exactMessage);
+                const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
+                
+                // WhatsApp URL: api.whatsapp.com works on both Mobile App & WhatsApp Web
+                const waUrl = `https://api.whatsapp.com/send?phone=${phoneNum ? '91' + phoneNum : ''}&text=${encodedMsg}`;
+                // SMS URL: iOS requires &body=, Android requires ?body=
+                const smsUrl = `sms:${phoneNum ? '+91' + phoneNum : ''}${isIOS ? '&' : '?'}body=${encodedMsg}`;
+
+                return (
+                  <>
+                    <a
+                      href={waUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={styles.whatsappBtn}
+                    >
+                      {t('bookSlot.openWhatsApp')}
+                    </a>
+                    <a
+                      href={smsUrl}
+                      style={styles.phoneSmsBtn}
+                    >
+                      {t('bookSlot.openSms')}
+                    </a>
+                  </>
+                );
+              })()}
             </div>
           </div>
 
