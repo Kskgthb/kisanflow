@@ -269,7 +269,7 @@ const BookSlot = () => {
               {(() => {
                 const farmerName = getSession()?.farmer?.fullName || 'Sumit Kumar';
                 const centreName = centres.find(c => c.id === parseInt(formData.centreId))?.name || 'Anaj Mandi Amritsar';
-                const formattedWait = `${bookingSuccess.estimatedWaitMinutes || 10} Mins`;
+                const formattedWait = `~${bookingSuccess.estimatedWaitMinutes || 10} Mins`;
                 const phoneNum = String(bookingSuccess.smsPhone || getSession()?.farmer?.phone_number || '').replace(/[^0-9]/g, '').slice(-10);
 
                 const exactMessage = 
@@ -284,24 +284,26 @@ const BookSlot = () => {
                 const encodedMsg = encodeURIComponent(exactMessage);
                 const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
                 
-                const waUrl = `https://api.whatsapp.com/send?phone=${phoneNum ? '91' + phoneNum : ''}&text=${encodedMsg}`;
+                // Direct WhatsApp wa.me scheme without extra wrapper
+                const waMeUrl = `https://wa.me/?text=${encodedMsg}`;
+                const waDirectUrl = phoneNum ? `https://wa.me/91${phoneNum}?text=${encodedMsg}` : `https://wa.me/?text=${encodedMsg}`;
                 const smsUrl = `sms:${phoneNum ? '+91' + phoneNum : ''}${isIOS ? '&' : '?'}body=${encodedMsg}`;
 
                 return (
                   <>
                     <a
-                      href={waUrl}
+                      href={waDirectUrl}
                       target="_blank"
                       rel="noreferrer"
                       style={{ ...styles.whatsappBtn, flex: 1, textAlign: 'center' }}
                     >
-                      📱 {t('bookSlot.openWhatsApp')}
+                      💬 Open WhatsApp (Auto Pre-filled)
                     </a>
                     <a
                       href={smsUrl}
                       style={{ ...styles.phoneSmsBtn, flex: 1, textAlign: 'center' }}
                     >
-                      📩 {t('bookSlot.openSms')}
+                      📩 Open SMS App (Auto Pre-filled)
                     </a>
                   </>
                 );
