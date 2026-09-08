@@ -217,28 +217,73 @@ const BookSlot = () => {
                 const encodedMsg = encodeURIComponent(exactMessage);
                 const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
                 
-                // WhatsApp URL: api.whatsapp.com works on both Mobile App & WhatsApp Web
                 const waUrl = `https://api.whatsapp.com/send?phone=${phoneNum ? '91' + phoneNum : ''}&text=${encodedMsg}`;
-                // SMS URL: iOS requires &body=, Android requires ?body=
+                const waMeUrl = `https://wa.me/${phoneNum ? '91' + phoneNum : ''}?text=${encodedMsg}`;
                 const smsUrl = `sms:${phoneNum ? '+91' + phoneNum : ''}${isIOS ? '&' : '?'}body=${encodedMsg}`;
 
+                const copyAndOpenWhatsApp = (e) => {
+                  try {
+                    if (navigator.clipboard) {
+                      navigator.clipboard.writeText(exactMessage);
+                    }
+                  } catch (err) {}
+                };
+
                 return (
-                  <>
-                    <a
-                      href={waUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      style={styles.whatsappBtn}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', width: '100%' }}>
+                    <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={copyAndOpenWhatsApp}
+                        style={{ ...styles.whatsappBtn, flex: 1 }}
+                      >
+                        📱 {t('bookSlot.openWhatsApp')} (App)
+                      </a>
+                      <a
+                        href={waMeUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={copyAndOpenWhatsApp}
+                        style={{ ...styles.whatsappBtn, background: '#25D366', flex: 1 }}
+                      >
+                        💬 Open WhatsApp (Web/wa.me)
+                      </a>
+                      <a
+                        href={smsUrl}
+                        style={{ ...styles.phoneSmsBtn, flex: 1 }}
+                      >
+                        📩 {t('bookSlot.openSms')}
+                      </a>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        if (navigator.clipboard) {
+                          navigator.clipboard.writeText(exactMessage);
+                          alert('📋 Message text copied to clipboard! You can paste (Long Press -> Paste) directly in WhatsApp or SMS.');
+                        }
+                      }}
+                      style={{
+                        padding: '10px',
+                        background: '#f8fafc',
+                        border: '1px dashed #64748b',
+                        borderRadius: '8px',
+                        color: '#334155',
+                        fontSize: '13px',
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '6px',
+                        marginTop: '4px'
+                      }}
                     >
-                      {t('bookSlot.openWhatsApp')}
-                    </a>
-                    <a
-                      href={smsUrl}
-                      style={styles.phoneSmsBtn}
-                    >
-                      {t('bookSlot.openSms')}
-                    </a>
-                  </>
+                      📋 Copy Full Booking Message Text (Instant Paste)
+                    </button>
+                  </div>
                 );
               })()}
             </div>
