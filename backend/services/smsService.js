@@ -95,12 +95,24 @@ Dhanyawad!`;
 
 function sendFast2SMS(numbers, message, apiKey) {
   return new Promise((resolve, reject) => {
-    const encodedMessage = encodeURIComponent(message);
+    const postData = JSON.stringify({
+      route: 'q',
+      message: message,
+      language: 'english',
+      flash: 0,
+      numbers: numbers,
+    });
+
     const options = {
       hostname: 'www.fast2sms.com',
       port: 443,
-      path: `/dev/bulkV2?authorization=${encodeURIComponent(apiKey)}&route=q&message=${encodedMessage}&language=english&flash=0&numbers=${encodeURIComponent(numbers)}`,
-      method: 'GET',
+      path: '/dev/bulkV2',
+      method: 'POST',
+      headers: {
+        'authorization': apiKey,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(postData),
+      },
     };
 
     const req = https.request(options, (res) => {
@@ -110,7 +122,7 @@ function sendFast2SMS(numbers, message, apiKey) {
         try {
           const parsed = JSON.parse(body);
           if (parsed.return) resolve(parsed);
-          else reject(new Error(parsed.message || JSON.stringify(parsed)));
+          else reject(new Error(parsed.message ? (Array.isArray(parsed.message) ? parsed.message.join(', ') : parsed.message) : JSON.stringify(parsed)));
         } catch (e) {
           resolve(body);
         }
@@ -118,6 +130,7 @@ function sendFast2SMS(numbers, message, apiKey) {
     });
 
     req.on('error', reject);
+    req.write(postData);
     req.end();
   });
 }

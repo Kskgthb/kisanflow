@@ -19,6 +19,15 @@ export function parseDate(dateInput) {
   return null;
 }
 
+/**
+ * Build a proper WhatsApp deep link with pre-filled text.
+ */
+export function buildWhatsAppHref(phone, message) {
+  const cleanPhone = String(phone || '').replace(/[^0-9]/g, '').slice(-10);
+  const fullPhone = cleanPhone ? `91${cleanPhone}` : '';
+  return `https://wa.me/${fullPhone}?text=${encodeURIComponent(message)}`;
+}
+
 export function formatAppDate(dateInput) {
   const d = parseDate(dateInput);
   if (!d) return '—';
