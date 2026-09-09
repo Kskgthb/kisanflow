@@ -22,10 +22,17 @@ const FarmerDashboard = () => {
       return;
     }
     setFarmer(session.farmer);
-    // Re-fetch every time we navigate to this page (catches status updates from TrackBooking)
     setLoading(true);
     fetchBookings(session.farmer.id);
+
+    // Silent background poll every 4 seconds for instant live updates
+    const interval = setInterval(() => {
+      fetchBookings(session.farmer.id, true);
+    }, 4000);
+
+    return () => clearInterval(interval);
   }, [navigate, location.key]);
+
 
   const handleAdminSwitch = () => {
     const adminSess = getAdminSession();
@@ -36,29 +43,18 @@ const FarmerDashboard = () => {
     }
   };
 
-  const fetchBookings = async (farmerId) => {
+  const fetchBookings = async (farmerId, silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const response = await bookingService.getFarmerBookings(farmerId);
       setBookings(response.data.bookings || []);
     } catch (error) {
       console.error('Failed to fetch bookings:', error);
-      // Demo data if API fails
-      setBookings([
-        {
-          id: 1,
-          crop_name: 'Wheat',
-          estimated_quantity_quintals: '5.5',
-          centre_name: 'Mandi Samiti Ludhiana',
-          booking_date: '2026-09-08',
-          slot_time: '10:00',
-          token_number: 'KISAN-20260908-001',
-          status: 'BOOKED'
-        }
-      ]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
+
 
   const handleLogout = () => {
     clearSession();

@@ -170,20 +170,24 @@ exports.getFarmerBookings = async (req, res) => {
     const { farmerId } = req.params;
     
     const result = await db.query(
-      `SELECT sb.*, pc.name as centre_name, c.name as crop_name
+      `SELECT sb.*, 
+              COALESCE(pc.name, 'Procurement Centre') as centre_name, 
+              COALESCE(c.name, 'Crop Grain') as crop_name
        FROM slot_bookings sb
-       JOIN procurement_centres pc ON sb.centre_id = pc.id
-       JOIN crops c ON sb.crop_id = c.id
+       LEFT JOIN procurement_centres pc ON sb.centre_id = pc.id
+       LEFT JOIN crops c ON sb.crop_id = c.id
        WHERE sb.farmer_id = $1
-       ORDER BY sb.booking_date DESC`,
+       ORDER BY sb.id DESC`,
       [farmerId]
     );
     
     res.json({ bookings: result.rows });
   } catch (error) {
+    console.error('Failed to fetch farmer bookings:', error);
     res.status(500).json({ error: 'Failed to fetch bookings' });
   }
 };
+
 
 exports.getBookingById = async (req, res) => {
   try {
