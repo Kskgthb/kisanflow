@@ -139,7 +139,11 @@ const initDatabase = async () => {
             is_used BOOLEAN DEFAULT FALSE,
             created_at TIMESTAMP DEFAULT NOW()
           );
+
+          // Auto-fix any legacy slot_bookings rows with NULL status
+          await client.query("UPDATE slot_bookings SET status = 'BOOKED' WHERE status IS NULL OR status = ''");
         `);
+
 
         // Seed initial centres if empty
         const centreCount = await client.query('SELECT COUNT(*) FROM procurement_centres');

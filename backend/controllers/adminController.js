@@ -17,11 +17,12 @@ exports.getAdminStats = async (req, res) => {
       SELECT 
         COUNT(*) as total_bookings,
         COUNT(CASE WHEN sb.booking_date = CURRENT_DATE THEN 1 END) as today_bookings,
-        COUNT(CASE WHEN sb.status = 'COMPLETED' THEN 1 END) as completed_bookings,
-        COUNT(CASE WHEN sb.status NOT IN ('COMPLETED', 'CANCELLED') THEN 1 END) as active_queue,
+        COUNT(CASE WHEN COALESCE(sb.status, 'BOOKED') = 'COMPLETED' THEN 1 END) as completed_bookings,
+        COUNT(CASE WHEN COALESCE(sb.status, 'BOOKED') NOT IN ('COMPLETED', 'CANCELLED') THEN 1 END) as active_queue,
         COALESCE(SUM(sb.estimated_quantity_quintals), 0) as total_estimated_quintals
       FROM slot_bookings sb
       ${centreFilter}
+
     `, params);
 
     // Payments summary
