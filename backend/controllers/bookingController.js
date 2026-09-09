@@ -59,11 +59,12 @@ exports.createBooking = async (req, res) => {
     
     // 2. Insert into slot_bookings
     const result = await db.query(
-      `INSERT INTO slot_bookings (farmer_id, centre_id, crop_id, booking_date, slot_time, estimated_quantity_quintals, token_number)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO slot_bookings (farmer_id, centre_id, crop_id, booking_date, slot_time, estimated_quantity_quintals, token_number, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'BOOKED')
        RETURNING *`,
       [farmerId, centreId, cropId, bookingDate, slotTime, quantity, tokenNumber]
     );
+
     
     // 3. Insert into live_queue
     await db.query(

@@ -92,15 +92,16 @@ const AdminDashboard = () => {
         }
       }
 
-      // 2. Fetch bookings
+      // 2. Fetch all bookings so client-side filtering and stage counts work seamlessly across all mandis
       const bookingsRes = await adminService.getBookings({
-        centreId: selectedCentre,
-        status: 'all', // fetch all so client filtering is instant
+        centreId: 'all',
+        status: 'all',
         search: '',
       });
       if (bookingsRes.data?.bookings) {
         setBookings(bookingsRes.data.bookings);
       }
+
 
       // 3. Procurements tab
       if (activeTab === 'procurements') {
@@ -268,8 +269,9 @@ const AdminDashboard = () => {
     const counts = { all: bookings.length };
     STAGES.forEach((s) => {
       counts[s.key] = bookings.filter((b) => {
-        if (s.key === 'COMPLETED') return b.status === 'COMPLETED' || b.status === 'PAYMENT_CREDITED';
-        return b.status === s.key;
+        const st = b.status || 'BOOKED';
+        if (s.key === 'COMPLETED') return st === 'COMPLETED' || st === 'PAYMENT_CREDITED';
+        return st === s.key;
       }).length;
     });
     return counts;
@@ -285,12 +287,14 @@ const AdminDashboard = () => {
 
       // Status filter
       if (statusFilter !== 'all') {
+        const st = b.status || 'BOOKED';
         if (statusFilter === 'COMPLETED') {
-          if (b.status !== 'COMPLETED' && b.status !== 'PAYMENT_CREDITED') return false;
-        } else if (b.status !== statusFilter) {
+          if (st !== 'COMPLETED' && st !== 'PAYMENT_CREDITED') return false;
+        } else if (st !== statusFilter) {
           return false;
         }
       }
+
 
       // Search filter
       if (searchTerm && searchTerm.trim()) {

@@ -107,7 +107,9 @@ exports.getAdminBookings = async (req, res) => {
     let query = `
       SELECT 
         sb.id, sb.token_number, sb.booking_date, sb.slot_time, 
-        sb.estimated_quantity_quintals as quantity, sb.status, sb.created_at,
+        sb.estimated_quantity_quintals as quantity, 
+        COALESCE(sb.status, 'BOOKED') as status, sb.created_at,
+
         sb.farmer_id, 
         COALESCE(f.full_name, 'Registered Kisan') as farmer_name, 
         COALESCE(f.phone_number, '') as phone_number, 
