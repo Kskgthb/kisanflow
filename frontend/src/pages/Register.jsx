@@ -128,10 +128,6 @@ const Register = () => {
               <label style={styles.label}>{t('auth.landArea')}</label>
               <input type="number" name="landArea" onChange={handleChange} style={styles.input} step="0.1" />
             </div>
-            <div style={styles.col}>
-              <label style={styles.label}>{t('auth.passwordReq')}</label>
-              <input type="password" name="password" onChange={handleChange} style={styles.input} required minLength="6" />
-            </div>
           </div>
 
           <button type="submit" style={styles.button} disabled={loading}>

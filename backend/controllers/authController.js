@@ -239,8 +239,8 @@ exports.registerAdmin = async (req, res) => {
   try {
     const { officerId, fullName, phoneNumber, email, centreId, designation, password } = req.body;
 
-    if (!officerId || !fullName || !phoneNumber || !password) {
-      return res.status(400).json({ error: 'Officer ID, Full Name, Phone, and Password are required' });
+    if (!officerId || !fullName || !phoneNumber) {
+      return res.status(400).json({ error: 'Officer ID, Full Name, and Phone are required' });
     }
 
     const existing = await db.query(
@@ -252,7 +252,7 @@ exports.registerAdmin = async (req, res) => {
       return res.status(400).json({ error: 'Officer ID or Phone number is already registered' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await bcrypt.hash(password || '123456', 10);
 
     const result = await db.query(
       `INSERT INTO admins (officer_id, full_name, phone_number, email, centre_id, designation, password_hash, role)
@@ -263,7 +263,7 @@ exports.registerAdmin = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: 'Officer registered successfully. Please login with your credentials.',
+      message: 'Officer registered successfully. Please login with your mobile OTP.',
       admin: result.rows[0],
     });
   } catch (error) {

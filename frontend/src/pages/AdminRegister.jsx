@@ -143,29 +143,15 @@ const AdminRegister = () => {
             </select>
           </div>
 
-          <div style={styles.grid2}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>{t('adminAuth.designation')}</label>
-              <input
-                type="text"
-                value={formData.designation}
-                onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-                style={styles.input}
-                placeholder="e.g. Mandi Inspector"
-              />
-            </div>
-
-            <div style={styles.formGroup}>
-              <label style={styles.label}>{t('adminAuth.password')} *</label>
-              <input
-                type="password"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-                style={styles.input}
-                placeholder="Create password"
-                required
-              />
-            </div>
+          <div style={styles.formGroup}>
+            <label style={styles.label}>{t('adminAuth.designation')}</label>
+            <input
+              type="text"
+              value={formData.designation}
+              onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+              style={styles.input}
+              placeholder="e.g. Mandi Inspector"
+            />
           </div>
 
           <button type="submit" style={styles.button} disabled={loading}>
