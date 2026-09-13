@@ -29,6 +29,10 @@ export const authService = {
   adminRegister: (data) => api.post('/auth/admin/register', data),
   adminLogin: (data) => api.post('/auth/admin/login', data),
 
+  // Login OTP Flow
+  requestLoginOtp: (data) => api.post('/auth/login/otp', data),
+  verifyLoginOtp: (data) => api.post('/auth/login/verify-otp', data),
+
   // Forgot Password
   requestResetOtp: (data) => api.post('/auth/forgot-password/otp', data),
   resetPassword: (data) => api.post('/auth/forgot-password/reset', data),

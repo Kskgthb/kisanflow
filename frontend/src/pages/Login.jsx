@@ -8,8 +8,12 @@ import LanguageSelector from '../components/LanguageSelector';
 const Login = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
-  const [formData, setFormData] = useState({ phoneNumber: '', password: '' });
+  const [phoneNumber, setPhoneNumber] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState('PHONE'); // 'PHONE' | 'OTP'
+  const [testOtp, setTestOtp] = useState('');
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
   // If already logged in, skip the login page
@@ -19,16 +23,51 @@ const Login = () => {
     }
   }, [navigate]);
 
-  const handleSubmit = async (e) => {
+  const handleSendOtp = async (e) => {
     e.preventDefault();
+    if (!phoneNumber || phoneNumber.length < 10) {
+      setError('Please enter a valid 10-digit mobile phone number.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    setSuccessMsg('');
+
+    try {
+      const response = await authService.requestLoginOtp({
+        phoneNumber,
+        userType: 'FARMER',
+      });
+      if (response.data.success) {
+        setStep('OTP');
+        setTestOtp(response.data.testOtp || '123456');
+        setSuccessMsg(`OTP sent to ${phoneNumber}.`);
+      }
+    } catch (err) {
+      console.error('Send OTP error:', err);
+      setError(err.response?.data?.error || 'Failed to send OTP. Make sure your phone number is registered.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otp) {
+      setError('Please enter the OTP.');
+      return;
+    }
     setLoading(true);
     setError('');
 
     try {
-      const response = await authService.login(formData);
+      const response = await authService.verifyLoginOtp({
+        phoneNumber,
+        otp,
+        userType: 'FARMER',
+      });
       const { token, farmer } = response.data;
 
-      // Normalise farmer object keys (backend returns snake_case sometimes)
       const normalised = {
         id: farmer.id,
         fullName: farmer.fullName || farmer.full_name,
@@ -39,15 +78,8 @@ const Login = () => {
       saveSession(token, normalised);
       navigate('/farmer/dashboard', { replace: true });
     } catch (err) {
-      console.error('Login error:', err);
-      const msg = err.response?.data?.error;
-      const status = err.response?.status;
-      const targetUrl = (err.config?.baseURL || '') + (err.config?.url || '');
-      if (msg === 'Invalid credentials') {
-        setError(t('auth.invalidCredentials'));
-      } else {
-        setError(msg || `${err.message || 'Request failed'} (URL: ${targetUrl || 'unknown'}, Status: ${status || 'Network Error'})`);
-      }
+      console.error('Verify OTP error:', err);
+      setError(err.response?.data?.error || 'Invalid OTP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -63,49 +95,68 @@ const Login = () => {
         <div style={styles.header}>
           <span style={styles.logo}>🌾</span>
           <h1 style={styles.title}>{t('auth.loginTitle')}</h1>
-          <p style={styles.subtitle}>{t('auth.loginSubtitle')}</p>
+          <p style={styles.subtitle}>Mobile OTP Login</p>
         </div>
 
         {error && <div style={styles.error}>{error}</div>}
+        {successMsg && <div style={styles.success}>{successMsg}</div>}
 
-        <form onSubmit={handleSubmit}>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>{t('auth.phoneNumber')}</label>
-            <input
-              type="tel"
-              value={formData.phoneNumber}
-              onChange={(e) => setFormData({ ...formData, phoneNumber: e.target.value })}
-              style={styles.input}
-              placeholder={t('auth.phonePlaceholder')}
-              maxLength="10"
-              required
-            />
-          </div>
-
-          <div style={styles.formGroup}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <label style={{ ...styles.label, marginBottom: 0 }}>{t('auth.password')}</label>
-              <Link 
-                to="/forgot-password?role=farmer" 
-                style={{ color: '#2e7d32', fontSize: '12px', fontWeight: 'bold', textDecoration: 'none' }}
-              >
-                {t('forgotPassword.title')}?
-              </Link>
+        {step === 'PHONE' ? (
+          <form onSubmit={handleSendOtp}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>{t('auth.phoneNumber')}</label>
+              <input
+                type="tel"
+                value={phoneNumber}
+                onChange={(e) => setPhoneNumber(e.target.value)}
+                style={styles.input}
+                placeholder={t('auth.phonePlaceholder')}
+                maxLength="10"
+                required
+              />
             </div>
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              style={styles.input}
-              placeholder={t('auth.passwordPlaceholder')}
-              required
-            />
-          </div>
 
-          <button type="submit" style={styles.button} disabled={loading}>
-            {loading ? t('auth.loggingIn') : t('auth.loginBtn')}
-          </button>
-        </form>
+            <button type="submit" style={styles.button} disabled={loading}>
+              {loading ? 'Sending OTP...' : '📲 Send Mobile OTP'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyOtp}>
+            {testOtp && (
+              <div style={styles.demoBox}>
+                <strong>🔑 Verification OTP:</strong>
+                <div style={{ marginTop: '4px', fontSize: '13px' }}>
+                  OTP Code: <code style={styles.code}>{testOtp}</code> or <code style={styles.code}>123456</code>
+                </div>
+              </div>
+            )}
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Enter 6-Digit OTP</label>
+              <input
+                type="text"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                style={{ ...styles.input, textAlign: 'center', fontSize: '20px', letterSpacing: '4px' }}
+                placeholder="123456"
+                maxLength="6"
+                required
+              />
+            </div>
+
+            <button type="submit" style={styles.button} disabled={loading}>
+              {loading ? 'Verifying OTP...' : '✅ Verify OTP & Login'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setStep('PHONE'); setError(''); setSuccessMsg(''); }}
+              style={styles.backBtn}
+            >
+              ← Change Mobile Number
+            </button>
+          </form>
+        )}
 
         <p style={styles.footer}>
           {t('auth.newFarmer')}{' '}
@@ -191,6 +242,42 @@ const styles = {
     borderRadius: '5px',
     marginBottom: '20px',
     textAlign: 'center',
+  },
+  success: {
+    background: '#e8f5e9',
+    color: '#2e7d32',
+    padding: '10px',
+    borderRadius: '5px',
+    marginBottom: '20px',
+    textAlign: 'center',
+    fontSize: '14px',
+  },
+  demoBox: {
+    background: '#f0f4f8',
+    padding: '10px 14px',
+    borderRadius: '8px',
+    border: '1px solid #d9e2ec',
+    marginBottom: '16px',
+    fontSize: '13px',
+    color: '#334e68',
+  },
+  code: {
+    background: '#e2e8f0',
+    padding: '2px 6px',
+    borderRadius: '4px',
+    fontFamily: 'monospace',
+    fontWeight: 'bold',
+    color: '#102a43',
+  },
+  backBtn: {
+    width: '100%',
+    padding: '10px',
+    background: 'none',
+    border: 'none',
+    color: '#666',
+    cursor: 'pointer',
+    marginTop: '10px',
+    fontSize: '13px',
   },
   footer: {
     textAlign: 'center',

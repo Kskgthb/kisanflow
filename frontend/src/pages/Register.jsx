@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../services/api';
-import { saveSession, isLoggedIn } from '../services/auth';
+import { isLoggedIn } from '../services/auth';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
 
@@ -38,15 +38,10 @@ const Register = () => {
 
     try {
       const response = await authService.register(formData);
-      const { token, farmer } = response.data;
-      const normalised = {
-        id: farmer.id,
-        fullName: farmer.fullName || farmer.full_name,
-        phoneNumber: farmer.phoneNumber || farmer.phone_number,
-        district: farmer.district,
-      };
-      saveSession(token, normalised);
-      navigate('/farmer/dashboard', { replace: true });
+      if (response.data.success) {
+        alert('✅ Registration successful! Please log in with your phone number and OTP.');
+        navigate('/login', { replace: true });
+      }
     } catch (err) {
       console.error('Register error:', err);
       const msg = err.response?.data?.error;

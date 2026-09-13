@@ -9,6 +9,8 @@ const { sendSMS, sendFast2SMS } = require('../services/smsService');
 // Farmer Auth
 router.post('/auth/register', authController.registerFarmer);
 router.post('/auth/login', authController.loginFarmer);
+router.post('/auth/login/otp', authController.requestLoginOtp);
+router.post('/auth/login/verify-otp', authController.verifyLoginOtp);
 
 // Admin / Mandi Officer Auth
 router.post('/auth/admin/register', authController.registerAdmin);

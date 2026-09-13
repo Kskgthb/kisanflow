@@ -50,6 +50,8 @@ const AdminDashboard = () => {
   const [weighQty, setWeighQty] = useState('');
   const [weighGrade, setWeighGrade] = useState('Grade A');
 
+  const [showMenu, setShowMenu] = useState(false);
+
   // Enforce Officer Authentication Guard
   useEffect(() => {
     const session = getAdminSession();
@@ -61,7 +63,6 @@ const AdminDashboard = () => {
     // Keep 'all' as default so officer sees statewide new bookings immediately
     setSelectedCentre('all');
   }, [navigate]);
-
 
   // Load centres on mount
   useEffect(() => {
@@ -101,7 +102,6 @@ const AdminDashboard = () => {
       if (bookingsRes.data?.bookings) {
         setBookings(bookingsRes.data.bookings);
       }
-
 
       // 3. Procurements tab
       if (activeTab === 'procurements') {
@@ -243,7 +243,6 @@ const AdminDashboard = () => {
     }
   };
 
-
   const handleSaveCropMsp = async (cropId, newMsp) => {
     try {
       await adminService.updateCropMsp(cropId, newMsp);
@@ -294,7 +293,6 @@ const AdminDashboard = () => {
           return false;
         }
       }
-
 
       // Search filter
       if (searchTerm && searchTerm.trim()) {
@@ -385,27 +383,90 @@ const AdminDashboard = () => {
 
           <LanguageSelector variant="light" />
 
-          <button 
-            onClick={() => {
-              const farmerSess = getSession();
-              if (farmerSess) navigate('/farmer/dashboard');
-              else navigate('/login');
-            }}
-            style={styles.switchBtn}
-            title="Switch to Farmer View"
-          >
-            👨‍🌾 Farmer View
-          </button>
+          {/* Three Dots Menu Button */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: '50%',
+                color: '#334e68',
+                lineHeight: 1,
+              }}
+              title="Menu options"
+            >
+              ⋮
+            </button>
 
-          <button
-            onClick={() => {
-              clearAdminSession();
-              navigate('/admin/login', { replace: true });
-            }}
-            style={styles.logoutBtn}
-          >
-            {t('common.logout')}
-          </button>
+            {showMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '40px',
+                  background: 'white',
+                  borderRadius: '10px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+                  padding: '8px 0',
+                  minWidth: '200px',
+                  zIndex: 999,
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <div
+                  onClick={() => {
+                    setShowMenu(false);
+                    const farmerSess = getSession();
+                    if (farmerSess) navigate('/farmer/dashboard');
+                    else navigate('/login');
+                  }}
+                  style={{
+                    padding: '10px 16px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    color: '#2e7d32',
+                    fontWeight: '600',
+                    transition: 'background 0.2s',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f0fdf4')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  🌾 Switch to Farmer View
+                </div>
+
+                <div style={{ height: '1px', background: '#edf2f7', margin: '4px 0' }} />
+
+                <div
+                  onClick={() => {
+                    setShowMenu(false);
+                    clearAdminSession();
+                    navigate('/admin/login', { replace: true });
+                  }}
+                  style={{
+                    padding: '10px 16px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    color: '#c62828',
+                    fontWeight: '600',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#ffebee')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  🚪 {t('common.logout')}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </header>
 

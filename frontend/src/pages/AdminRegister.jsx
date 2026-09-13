@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { authService, bookingService } from '../services/api';
-import { saveAdminSession } from '../services/auth';
 import { useLanguage } from '../context/LanguageContext';
 import LanguageSelector from '../components/LanguageSelector';
 
@@ -47,8 +46,8 @@ const AdminRegister = () => {
     try {
       const response = await authService.adminRegister(formData);
       if (response.data.success) {
-        saveAdminSession(response.data.token, response.data.admin);
-        navigate('/admin/dashboard', { replace: true });
+        alert('✅ Officer registration successful! Please log in to continue.');
+        navigate('/admin/login', { replace: true });
       }
     } catch (err) {
       console.error('Admin registration error:', err);

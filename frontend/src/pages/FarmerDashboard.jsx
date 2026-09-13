@@ -12,6 +12,7 @@ const FarmerDashboard = () => {
   const [farmer, setFarmer] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [showMenu, setShowMenu] = useState(false);
 
   const location = useLocation();
 
@@ -90,28 +91,91 @@ const FarmerDashboard = () => {
       <div style={styles.header}>
         <h1 style={styles.logo}>🌾 {t('common.appName')}</h1>
         <div style={styles.headerRight}>
-          <button 
-            onClick={handleAdminSwitch} 
-            style={{
-              padding: '8px 14px',
-              background: '#e3f2fd',
-              color: '#1565c0',
-              border: '1px solid #bbdefb',
-              borderRadius: '8px',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              fontSize: '13px',
-            }}
-          >
-            🛡️ Admin Portal
-          </button>
           <LanguageSelector variant="light" />
           <span style={styles.welcome}>
             {t('common.welcome', { name: farmer?.fullName || 'Kisan' })}
           </span>
-          <button onClick={handleLogout} style={styles.logoutBtn}>
-            {t('common.logout')}
-          </button>
+
+          {/* Three Dots Menu Button */}
+          <div style={{ position: 'relative' }}>
+            <button
+              onClick={() => setShowMenu(!showMenu)}
+              style={{
+                background: 'none',
+                border: 'none',
+                fontSize: '24px',
+                cursor: 'pointer',
+                padding: '4px 8px',
+                borderRadius: '50%',
+                color: '#333',
+                lineHeight: 1,
+              }}
+              title="Menu options"
+            >
+              ⋮
+            </button>
+
+            {showMenu && (
+              <div
+                style={{
+                  position: 'absolute',
+                  right: 0,
+                  top: '40px',
+                  background: 'white',
+                  borderRadius: '10px',
+                  boxShadow: '0 8px 24px rgba(0,0,0,0.18)',
+                  padding: '8px 0',
+                  minWidth: '200px',
+                  zIndex: 999,
+                  border: '1px solid #e2e8f0',
+                }}
+              >
+                <div
+                  onClick={() => {
+                    setShowMenu(false);
+                    handleAdminSwitch();
+                  }}
+                  style={{
+                    padding: '10px 16px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    color: '#1565c0',
+                    fontWeight: '600',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#e3f2fd')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  🛡️ Mandi Admin Dashboard
+                </div>
+
+                <div style={{ height: '1px', background: '#edf2f7', margin: '4px 0' }} />
+
+                <div
+                  onClick={() => {
+                    setShowMenu(false);
+                    handleLogout();
+                  }}
+                  style={{
+                    padding: '10px 16px',
+                    fontSize: '14px',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    color: '#c62828',
+                    fontWeight: '600',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#ffebee')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  🚪 {t('common.logout')}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

@@ -9,31 +9,64 @@ const AdminLogin = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
 
-  const [formData, setFormData] = useState({
-    loginId: '',
-    password: '',
-  });
+  const [loginId, setLoginId] = useState('');
+  const [otp, setOtp] = useState('');
+  const [step, setStep] = useState('ID'); // 'ID' | 'OTP'
+  const [testOtp, setTestOtp] = useState('');
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = async (e) => {
+  const handleSendOtp = async (e) => {
     e.preventDefault();
-    setError('');
+    if (!loginId) {
+      setError('Please enter your Officer ID or registered Phone Number.');
+      return;
+    }
     setLoading(true);
+    setError('');
+    setSuccessMsg('');
 
     try {
-      const response = await authService.adminLogin(formData);
+      const response = await authService.requestLoginOtp({
+        phoneNumber: loginId,
+        userType: 'ADMIN',
+      });
+      if (response.data.success) {
+        setStep('OTP');
+        setTestOtp(response.data.testOtp || '123456');
+        setSuccessMsg(`OTP sent to registered officer mobile number.`);
+      }
+    } catch (err) {
+      console.error('Admin OTP send error:', err);
+      setError(err.response?.data?.error || 'Failed to send OTP. Make sure your Officer ID / Phone is registered.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e) => {
+    e.preventDefault();
+    if (!otp) {
+      setError('Please enter the OTP.');
+      return;
+    }
+    setLoading(true);
+    setError('');
+
+    try {
+      const response = await authService.verifyLoginOtp({
+        phoneNumber: loginId,
+        otp,
+        userType: 'ADMIN',
+      });
       if (response.data.success) {
         saveAdminSession(response.data.token, response.data.admin);
         navigate('/admin/dashboard', { replace: true });
       }
     } catch (err) {
-      console.error('Admin login error:', err);
-      setError(
-        err.response?.data?.error || 
-        t('adminAuth.invalidCredentials') ||
-        'Invalid Officer ID or Password. Demo Officer ID: OFF-101 / Pass: admin123'
-      );
+      console.error('Admin verify OTP error:', err);
+      setError(err.response?.data?.error || 'Invalid OTP. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -47,7 +80,7 @@ const AdminLogin = () => {
             <span style={{ fontSize: '32px' }}>🛡️</span>
           </div>
           <h1 style={styles.title}>{t('adminAuth.loginTitle')}</h1>
-          <p style={styles.subtitle}>{t('adminAuth.loginSubtitle')}</p>
+          <p style={styles.subtitle}>Mandi Officer Mobile OTP Login</p>
         </div>
 
         <div style={styles.langRow}>
@@ -55,52 +88,71 @@ const AdminLogin = () => {
         </div>
 
         {error && <div style={styles.error}>{error}</div>}
+        {successMsg && <div style={styles.success}>{successMsg}</div>}
 
-        {/* Demo Credentials Box for easy evaluation */}
-        <div style={styles.demoBox}>
-          <strong>🔑 Demo Officer Credentials:</strong>
-          <div style={{ marginTop: '4px', fontSize: '13px' }}>
-            Officer ID: <code style={styles.code}>OFF-101</code> &bull; Password: <code style={styles.code}>admin123</code>
-          </div>
-        </div>
-
-        <form onSubmit={handleSubmit} style={styles.form}>
-          <div style={styles.formGroup}>
-            <label style={styles.label}>{t('adminAuth.officerId')}</label>
-            <input
-              type="text"
-              value={formData.loginId}
-              onChange={(e) => setFormData({ ...formData, loginId: e.target.value })}
-              style={styles.input}
-              placeholder={t('adminAuth.officerIdPlaceholder')}
-              required
-            />
-          </div>
-
-          <div style={styles.formGroup}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
-              <label style={{ ...styles.label, marginBottom: 0 }}>{t('adminAuth.password')}</label>
-              <Link 
-                to="/forgot-password?role=admin" 
-                style={{ color: '#1976d2', fontSize: '12px', fontWeight: 'bold', textDecoration: 'none' }}
-              >
-                {t('forgotPassword.title')}?
-              </Link>
+        {step === 'ID' ? (
+          <form onSubmit={handleSendOtp} style={styles.form}>
+            {/* Demo Credentials Box */}
+            <div style={styles.demoBox}>
+              <strong>🔑 Demo Officer Access:</strong>
+              <div style={{ marginTop: '4px', fontSize: '13px' }}>
+                Officer ID / Phone: <code style={styles.code}>OFF-101</code> &bull; Demo OTP: <code style={styles.code}>123456</code>
+              </div>
             </div>
-            <input
-              type="password"
-              value={formData.password}
-              onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              style={styles.input}
-              placeholder={t('adminAuth.passwordPlaceholder')}
-              required
-            />
-          </div>
 
-          <button type="submit" style={styles.button} disabled={loading}>
-            {loading ? t('adminAuth.loggingIn') : t('adminAuth.loginBtn')}
-          </button>
-        </form>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>{t('adminAuth.officerId')} / Mobile Phone</label>
+              <input
+                type="text"
+                value={loginId}
+                onChange={(e) => setLoginId(e.target.value)}
+                style={styles.input}
+                placeholder="OFF-101 or Mobile Number"
+                required
+              />
+            </div>
+
+            <button type="submit" style={styles.button} disabled={loading}>
+              {loading ? 'Sending Mobile OTP...' : '📲 Send Officer OTP'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyOtp} style={styles.form}>
+            {testOtp && (
+              <div style={styles.demoBox}>
+                <strong>🔑 Verification OTP:</strong>
+                <div style={{ marginTop: '4px', fontSize: '13px' }}>
+                  OTP Code: <code style={styles.code}>{testOtp}</code> or <code style={styles.code}>123456</code>
+                </div>
+              </div>
+            )}
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>Enter 6-Digit OTP</label>
+              <input
+                type="text"
+                value={otp}
+                onChange={(e) => setOtp(e.target.value)}
+                style={{ ...styles.input, textAlign: 'center', fontSize: '20px', letterSpacing: '4px' }}
+                placeholder="123456"
+                maxLength="6"
+                required
+              />
+            </div>
+
+            <button type="submit" style={styles.button} disabled={loading}>
+              {loading ? 'Verifying OTP...' : '✅ Verify OTP & Enter Dashboard'}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => { setStep('ID'); setError(''); setSuccessMsg(''); }}
+              style={styles.backBtn}
+            >
+              ← Change Officer ID / Phone
+            </button>
+          </form>
+        )}
 
         <div style={styles.footerLinks}>
           <p style={{ margin: '0 0 10px', fontSize: '14px', color: '#555' }}>
@@ -233,6 +285,25 @@ const styles = {
     fontSize: '13px',
     marginBottom: '14px',
     border: '1px solid #ffcdd2',
+  },
+  success: {
+    background: '#e8f5e9',
+    color: '#2e7d32',
+    padding: '10px 14px',
+    borderRadius: '8px',
+    fontSize: '13px',
+    marginBottom: '14px',
+    border: '1px solid #c8e6c9',
+  },
+  backBtn: {
+    width: '100%',
+    padding: '10px',
+    background: 'none',
+    border: 'none',
+    color: '#607d8b',
+    cursor: 'pointer',
+    marginTop: '4px',
+    fontSize: '13px',
   },
   footerLinks: {
     marginTop: '20px',

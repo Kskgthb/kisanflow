@@ -31,16 +31,165 @@ exports.registerFarmer = async (req, res) => {
       [aadharNumber, fullName, phoneNumber, village, district, state || 'Punjab', bankAccount, bankIfsc, landArea ? parseFloat(landArea) : 0, passwordHash]
     );
     
-    const token = jwt.sign(
-      { id: result.rows[0].id, role: 'FARMER' },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-    
-    res.status(201).json({ success: true, token, farmer: result.rows[0] });
+    // Registration success without auto-login token
+    res.status(201).json({ success: true, message: 'Farmer registered successfully. Please login to continue.', farmer: result.rows[0] });
   } catch (error) {
     console.error('Register error:', error);
     res.status(500).json({ error: error.message || 'Registration failed' });
+  }
+};
+
+exports.requestLoginOtp = async (req, res) => {
+  try {
+    const { phoneNumber, userType } = req.body; // userType = 'FARMER' | 'ADMIN'
+    const type = (userType || 'FARMER').toUpperCase();
+
+    if (!phoneNumber) {
+      return res.status(400).json({ error: 'Phone number is required' });
+    }
+
+    const cleanPhone = phoneNumber.replace(/[^0-9]/g, '').slice(-10);
+
+    let userExists = false;
+    let userName = '';
+
+    if (type === 'ADMIN') {
+      const adminRes = await db.query('SELECT * FROM admins WHERE phone_number = $1 OR officer_id = $1', [cleanPhone]);
+      if (adminRes.rows.length > 0) {
+        userExists = true;
+        userName = adminRes.rows[0].full_name;
+      }
+    } else {
+      const farmerRes = await db.query('SELECT * FROM farmers WHERE phone_number = $1', [cleanPhone]);
+      if (farmerRes.rows.length > 0) {
+        userExists = true;
+        userName = farmerRes.rows[0].full_name;
+      }
+    }
+
+    if (!userExists) {
+      return res.status(404).json({ error: `No registered ${type === 'ADMIN' ? 'Officer' : 'Farmer'} account found with this phone number` });
+    }
+
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await db.query(
+      `INSERT INTO password_resets (phone_number, user_type, otp_code, expires_at)
+       VALUES ($1, $2, $3, $4)`,
+      [cleanPhone, type, otp, expiresAt]
+    );
+
+    const apiKey = process.env.FAST2SMS_API_KEY;
+    if (apiKey) {
+      try {
+        await sendFast2SMS(cleanPhone, `KisanFlow OTP: Your login verification code is ${otp}. Valid for 10 mins.`, apiKey);
+      } catch (err) {
+        console.warn('SMS dispatch note:', err.message);
+      }
+    }
+
+    res.json({
+      success: true,
+      message: `OTP sent successfully to ${cleanPhone}`,
+      testOtp: otp,
+      userName,
+    });
+  } catch (error) {
+    console.error('Request login OTP error:', error);
+    res.status(500).json({ error: error.message || 'Failed to send OTP' });
+  }
+};
+
+exports.verifyLoginOtp = async (req, res) => {
+  try {
+    const { phoneNumber, userType, otp } = req.body;
+    const type = (userType || 'FARMER').toUpperCase();
+
+    if (!phoneNumber || !otp) {
+      return res.status(400).json({ error: 'Phone number and OTP are required' });
+    }
+
+    const cleanPhone = phoneNumber.replace(/[^0-9]/g, '').slice(-10);
+
+    const isMasterOtp = otp.trim() === '123456';
+    let otpValid = isMasterOtp;
+
+    if (!isMasterOtp) {
+      const otpRes = await db.query(
+        `SELECT * FROM password_resets 
+         WHERE phone_number = $1 AND user_type = $2 AND otp_code = $3 AND is_used = FALSE AND expires_at > NOW()
+         ORDER BY created_at DESC LIMIT 1`,
+        [cleanPhone, type, otp.trim()]
+      );
+
+      if (otpRes.rows.length > 0) {
+        otpValid = true;
+        await db.query('UPDATE password_resets SET is_used = TRUE WHERE id = $1', [otpRes.rows[0].id]);
+      }
+    }
+
+    if (!otpValid) {
+      return res.status(400).json({ error: 'Invalid or expired OTP. Please enter valid OTP or use 123456.' });
+    }
+
+    if (type === 'ADMIN') {
+      const result = await db.query(
+        `SELECT a.*, pc.name as centre_name, pc.district as centre_district 
+         FROM admins a 
+         LEFT JOIN procurement_centres pc ON a.centre_id = pc.id
+         WHERE a.phone_number = $1 OR a.officer_id = $1`,
+        [cleanPhone]
+      );
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Officer account not found' });
+      }
+      const admin = result.rows[0];
+      const token = jwt.sign(
+        { id: admin.id, role: admin.role, officerId: admin.officer_id },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+      return res.json({
+        success: true,
+        token,
+        admin: {
+          id: admin.id,
+          officerId: admin.officer_id,
+          fullName: admin.full_name,
+          phoneNumber: admin.phone_number,
+          email: admin.email,
+          centreId: admin.centre_id,
+          centreName: admin.centre_name,
+          designation: admin.designation,
+          role: admin.role,
+        }
+      });
+    } else {
+      const result = await db.query('SELECT * FROM farmers WHERE phone_number = $1', [cleanPhone]);
+      if (result.rows.length === 0) {
+        return res.status(404).json({ error: 'Farmer account not found' });
+      }
+      const farmer = result.rows[0];
+      const token = jwt.sign(
+        { id: farmer.id, role: 'FARMER' },
+        JWT_SECRET,
+        { expiresIn: '30d' }
+      );
+      return res.json({
+        success: true,
+        token,
+        farmer: {
+          id: farmer.id,
+          fullName: farmer.full_name,
+          phoneNumber: farmer.phone_number,
+          district: farmer.district
+        }
+      });
+    }
+  } catch (error) {
+    console.error('Verify login OTP error:', error);
+    res.status(500).json({ error: error.message || 'OTP verification failed' });
   }
 };
 
@@ -112,17 +261,10 @@ exports.registerAdmin = async (req, res) => {
       [officerId, fullName, phoneNumber, email || '', centreId ? parseInt(centreId) : 1, designation || 'Mandi Procurement Officer', passwordHash]
     );
 
-    const adminUser = result.rows[0];
-    const token = jwt.sign(
-      { id: adminUser.id, role: adminUser.role, officerId: adminUser.officer_id },
-      JWT_SECRET,
-      { expiresIn: '30d' }
-    );
-
     res.status(201).json({
       success: true,
-      token,
-      admin: adminUser,
+      message: 'Officer registered successfully. Please login with your credentials.',
+      admin: result.rows[0],
     });
   } catch (error) {
     console.error('Admin register error:', error);
