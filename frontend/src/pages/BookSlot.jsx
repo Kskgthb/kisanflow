@@ -43,6 +43,7 @@ const BookSlot = () => {
 
   useEffect(() => {
     fetchCentres();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchCentres = async () => {
@@ -285,7 +286,6 @@ const BookSlot = () => {
                 const isIOS = typeof navigator !== 'undefined' && /iPad|iPhone|iPod/.test(navigator.userAgent);
                 
                 // Direct WhatsApp wa.me scheme without extra wrapper
-                const waMeUrl = `https://wa.me/?text=${encodedMsg}`;
                 const waDirectUrl = phoneNum ? `https://wa.me/91${phoneNum}?text=${encodedMsg}` : `https://wa.me/?text=${encodedMsg}`;
                 const smsUrl = `sms:${phoneNum ? '+91' + phoneNum : ''}${isIOS ? '&' : '?'}body=${encodedMsg}`;
 
