@@ -193,16 +193,6 @@ const FarmerDashboard = () => {
         >
           {t('dashboard.paymentHistory')}
         </button>
-        <button 
-          onClick={handleAdminSwitch} 
-          style={{
-            ...styles.quickActionBtn,
-            background: 'linear-gradient(135deg, #1976d2 0%, #1565c0 100%)',
-            color: '#fff',
-          }}
-        >
-          🛡️ Mandi Admin Desk
-        </button>
       </div>
 
       {/* Stats Cards */}
