@@ -9,11 +9,9 @@ const Login = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
 
-  const [loginMethod, setLoginMethod] = useState('PASSWORD'); // 'PASSWORD' | 'OTP'
   const [phoneNumber, setPhoneNumber] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState('PHONE'); // 'PHONE' | 'OTP'
   const [testOtp, setTestOtp] = useState('');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');

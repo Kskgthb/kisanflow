@@ -9,11 +9,9 @@ const AdminLogin = () => {
   const navigate = useNavigate();
   const { t } = useLanguage();
 
-  const [loginMethod, setLoginMethod] = useState('PASSWORD'); // 'PASSWORD' | 'OTP'
   const [loginId, setLoginId] = useState('');
   const [password, setPassword] = useState('');
   const [otp, setOtp] = useState('');
-  const [step, setStep] = useState('ID'); // 'ID' | 'OTP'
   const [testOtp, setTestOtp] = useState('');
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
