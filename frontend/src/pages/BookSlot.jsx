@@ -11,9 +11,14 @@ const BookSlot = () => {
   const { t, tCrop } = useLanguage();
   const [centres, setCentres] = useState([]);
   const [crops] = useState([
-    { id: 1, name: 'Wheat', msp: 2275 },
-    { id: 2, name: 'Paddy', msp: 2183 },
-    { id: 3, name: 'Cotton', msp: 7020 },
+    { id: 1, name: 'Paddy (Aman)', msp: 2300 },
+    { id: 2, name: 'Paddy (Boro)', msp: 2300 },
+    { id: 3, name: 'Jute', msp: 5335 },
+    { id: 4, name: 'Potato', msp: 1250 },
+    { id: 5, name: 'Maize', msp: 2225 },
+    { id: 6, name: 'Mustard', msp: 5650 },
+    { id: 7, name: 'Pulses (Lentils)', msp: 6425 },
+    { id: 8, name: 'Wheat', msp: 2275 },
   ]);
 
   // Compute helper dates

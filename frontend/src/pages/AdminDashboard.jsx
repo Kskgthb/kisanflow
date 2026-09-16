@@ -359,7 +359,7 @@ const AdminDashboard = () => {
               <span style={styles.portalTag}>MANDI OFFICER PORTAL</span>
             </div>
             <p style={styles.headerSubtitle}>
-              Punjab State Agricultural Marketing Board • Real-Time Smart Procurement Desk
+              West Bengal State Agricultural Marketing Board • Real-Time Smart Procurement Desk
             </p>
           </div>
         </div>
@@ -486,7 +486,7 @@ const AdminDashboard = () => {
             onChange={(e) => setSelectedCentre(e.target.value)}
             style={styles.selectInput}
           >
-            <option value="all">🌐 All Mandi Centres (Punjab Statewide)</option>
+            <option value="all">🌐 All Mandi Centres (West Bengal Statewide)</option>
             {centresList.map(c => (
               <option key={c.id} value={c.id}>
                 {c.name} ({c.district})

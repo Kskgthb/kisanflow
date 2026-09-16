@@ -115,17 +115,28 @@ CREATE TABLE centre_staff (
     role VARCHAR(30) DEFAULT 'MANAGER'
 );
 
--- Insert Sample Data
+-- Insert Sample Data for West Bengal
 INSERT INTO procurement_centres (name, address, district, state, daily_capacity_quintals) VALUES
-('Mandi Samiti Ludhiana', 'GT Road, Ludhiana', 'Ludhiana', 'Punjab', 500),
-('Anaj Mandi Amritsar', 'Amritsar Cantt', 'Amritsar', 'Punjab', 400),
-('Krishi Mandi Jalandhar', 'Nakodar Road', 'Jalandhar', 'Punjab', 350);
+('Burdwan Krishi Mandi', 'GT Road, Nawabhat, Bardhaman', 'Purba Bardhaman', 'West Bengal', 600),
+('Kalna Central Kisan Mandi', 'STKK Road, Kalna', 'Purba Bardhaman', 'West Bengal', 450),
+('Katwa Sub-Divisional Mandi', 'Station Road, Katwa', 'Purba Bardhaman', 'West Bengal', 400),
+('Hooghly Kisan Mandi Singur', 'Durgapur Expressway, Singur', 'Hooghly', 'West Bengal', 550),
+('Arambagh Central Procurement Centre', 'Arambagh Link Road', 'Hooghly', 'West Bengal', 480),
+('Nadia Krishnanagar Kisan Mandi', 'NH-34 Crossing, Krishnanagar', 'Nadia', 'West Bengal', 500),
+('Murshidabad Berhampore Central Mandi', 'Cossimbazar Road, Berhampore', 'Murshidabad', 'West Bengal', 580),
+('Malda English Bazar Kisan Mandi', 'NH-34, Mangalbari, English Bazar', 'Malda', 'West Bengal', 520),
+('North 24 Parganas Barasat Mandi', 'Jessore Road, Barasat', 'North 24 Parganas', 'West Bengal', 490),
+('Midnapore Central Kisan Mandi', 'Station Road, Paschim Medinipur', 'Paschim Medinipur', 'West Bengal', 540),
+('Birbhum Bolpur Shantiniketan Mandi', 'Prantik Road, Bolpur', 'Birbhum', 'West Bengal', 510);
 
 INSERT INTO crops (name, season, msp_per_quintal, procurement_start_date, procurement_end_date) VALUES
-('Wheat', 'Rabi', 2275, '2026-03-15', '2026-05-31'),
-('Paddy', 'Kharif', 2183, '2026-10-01', '2026-12-31'),
-('Cotton', 'Kharif', 7020, '2026-10-15', '2027-01-31');
+('Paddy (Aman)', 'Kharif', 2300, '2026-11-01', '2027-03-31'),
+('Paddy (Boro)', 'Rabi', 2300, '2026-04-01', '2026-07-31'),
+('Jute', 'Kharif', 5335, '2026-07-01', '2026-11-30'),
+('Potato', 'Rabi', 1250, '2026-01-15', '2026-04-30'),
+('Maize', 'Kharif', 2225, '2026-09-15', '2026-12-31'),
+('Mustard', 'Rabi', 5650, '2026-02-15', '2026-05-31');
 
 -- Demo farmer
 INSERT INTO farmers (aadhar_number, full_name, phone_number, village, district, state, bank_account, bank_ifsc, land_area_acres, password_hash) VALUES
-('123456789012', 'Ramesh Kumar', '9876543210', 'Village Sarabha', 'Ludhiana', 'Punjab', '12345678901', 'SBIN0001234', 5.5, '$2b$10$abcdefghijklmnopqrstuvwxyz1234567890');
+('123456789012', 'Subrata Das', '9876543210', 'Village Shantiniketan', 'Purba Bardhaman', 'West Bengal', '12345678901', 'SBIN0001234', 4.5, '$2b$10$abcdefghijklmnopqrstuvwxyz1234567890');

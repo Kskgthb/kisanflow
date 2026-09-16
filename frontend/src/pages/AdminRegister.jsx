@@ -40,6 +40,10 @@ const AdminRegister = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.password || formData.password.length < 4) {
+      setError('Password is required and must be at least 4 characters long.');
+      return;
+    }
     setError('');
     setLoading(true);
 
@@ -143,15 +147,29 @@ const AdminRegister = () => {
             </select>
           </div>
 
-          <div style={styles.formGroup}>
-            <label style={styles.label}>{t('adminAuth.designation')}</label>
-            <input
-              type="text"
-              value={formData.designation}
-              onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
-              style={styles.input}
-              placeholder="e.g. Mandi Inspector"
-            />
+          <div style={styles.grid2}>
+            <div style={styles.formGroup}>
+              <label style={styles.label}>{t('adminAuth.designation')}</label>
+              <input
+                type="text"
+                value={formData.designation}
+                onChange={(e) => setFormData({ ...formData, designation: e.target.value })}
+                style={styles.input}
+                placeholder="e.g. Mandi Inspector"
+              />
+            </div>
+
+            <div style={styles.formGroup}>
+              <label style={styles.label}>{t('adminAuth.password')} *</label>
+              <input
+                type="password"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                style={styles.input}
+                placeholder={t('adminAuth.passwordPlaceholder')}
+                required
+              />
+            </div>
           </div>
 
           <button type="submit" style={styles.button} disabled={loading}>

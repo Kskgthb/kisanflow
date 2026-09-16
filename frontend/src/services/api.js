@@ -1,7 +1,8 @@
 import axios from 'axios';
 
-// Live production API endpoint
-const API_BASE_URL = 'https://kisanflow-tgvk.vercel.app/api';
+// Dynamic API endpoint: connects to localhost:5000 when running locally
+const isLocalhost = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+const API_BASE_URL = isLocalhost ? 'http://localhost:5000/api' : 'https://kisanflow-tgvk.vercel.app/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,

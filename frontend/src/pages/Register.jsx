@@ -14,7 +14,7 @@ const Register = () => {
     phoneNumber: '',
     village: '',
     district: '',
-    state: 'Punjab',
+    state: 'WB',
     bankAccount: '',
     bankIfsc: '',
     landArea: '',
@@ -33,13 +33,17 @@ const Register = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!formData.password || formData.password.length < 4) {
+      setError('Password is required and must be at least 4 characters long.');
+      return;
+    }
     setLoading(true);
     setError('');
 
     try {
       const response = await authService.register(formData);
       if (response.data.success) {
-        alert('✅ Registration successful! Please log in with your phone number and OTP.');
+        alert('✅ Registration successful! You can now log in using your Password or Mobile OTP.');
         navigate('/login', { replace: true });
       }
     } catch (err) {
@@ -127,6 +131,18 @@ const Register = () => {
             <div style={styles.col}>
               <label style={styles.label}>{t('auth.landArea')}</label>
               <input type="number" name="landArea" onChange={handleChange} style={styles.input} step="0.1" />
+            </div>
+            <div style={styles.col}>
+              <label style={styles.label}>{t('auth.passwordReq')}</label>
+              <input 
+                type="password" 
+                name="password" 
+                value={formData.password}
+                onChange={handleChange} 
+                style={styles.input} 
+                placeholder={t('auth.passwordPlaceholder')}
+                required 
+              />
             </div>
           </div>
 

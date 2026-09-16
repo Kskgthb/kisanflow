@@ -154,7 +154,7 @@ export const translations = {
     },
     adminAuth: {
       loginTitle: 'Mandi Officer Portal',
-      loginSubtitle: 'Punjab Mandi Board Administrative Control',
+      loginSubtitle: 'West Bengal Mandi Board Administrative Control',
       officerId: 'Officer ID / Phone / Email',
       officerIdPlaceholder: 'OFF-101 or 9876543210',
       password: 'Password',
@@ -201,6 +201,13 @@ export const translations = {
     crops: {
       Wheat: 'Wheat',
       Paddy: 'Paddy',
+      'Paddy (Aman)': 'Paddy (Aman)',
+      'Paddy (Boro)': 'Paddy (Boro)',
+      Jute: 'Jute',
+      Potato: 'Potato',
+      Maize: 'Maize',
+      Mustard: 'Mustard',
+      'Pulses (Lentils)': 'Pulses (Lentils)',
       Cotton: 'Cotton',
     },
     statuses: {
@@ -376,7 +383,7 @@ export const translations = {
     },
     adminAuth: {
       loginTitle: 'मंडी अधिकारी पोर्टल',
-      loginSubtitle: 'पंजाब मंडी बोर्ड प्रशासनिक नियंत्रण केंद्र',
+      loginSubtitle: 'पश्चिम बंगाल मंडी बोर्ड प्रशासनिक नियंत्रण केंद्र',
       officerId: 'अधिकारी आईडी / मोबाइल / ईमेल',
       officerIdPlaceholder: 'OFF-101 या 9876543210',
       password: 'पासवर्ड',
@@ -423,6 +430,13 @@ export const translations = {
     crops: {
       Wheat: 'गेहूं',
       Paddy: 'धान (चावल)',
+      'Paddy (Aman)': 'धान (अमन - खरीफ)',
+      'Paddy (Boro)': 'धान (बोरो - रबी)',
+      Jute: 'पटसन / जूट',
+      Potato: 'आलू',
+      Maize: 'मक्का',
+      Mustard: 'सरसों',
+      'Pulses (Lentils)': 'मसूर / दालें',
       Cotton: 'कपास (कॉटन)',
     },
     statuses: {
@@ -598,7 +612,7 @@ export const translations = {
     },
     adminAuth: {
       loginTitle: 'মান্ডি অফিসার পোর্টাল',
-      loginSubtitle: 'পাঞ্জাব মান্ডি বোর্ড প্রশাসনিক নিয়ন্ত্রণ কেন্দ্র',
+      loginSubtitle: 'পশ্চিমবঙ্গ মান্ডি বোর্ড প্রশাসনিক নিয়ন্ত্রণ কেন্দ্র',
       officerId: 'অফিসার আইডি / মোবাইল / ইমেল',
       officerIdPlaceholder: 'OFF-101 বা 9876543210',
       password: 'পাসওয়ার্ড',
@@ -645,6 +659,13 @@ export const translations = {
     crops: {
       Wheat: 'গম',
       Paddy: 'ধান',
+      'Paddy (Aman)': 'আমন ধান',
+      'Paddy (Boro)': 'বোরো ধান',
+      Jute: 'পাট',
+      Potato: 'আলু',
+      Maize: 'ভুট্টা',
+      Mustard: 'সরষে',
+      'Pulses (Lentils)': 'মসুর ডাল',
       Cotton: 'তুলা',
     },
     statuses: {

@@ -195,19 +195,50 @@ exports.verifyLoginOtp = async (req, res) => {
 
 exports.loginFarmer = async (req, res) => {
   try {
-    const { phoneNumber, password } = req.body;
+    const { phoneNumber, password, otp } = req.body;
     
-    const result = await db.query('SELECT * FROM farmers WHERE phone_number = $1', [phoneNumber]);
+    if (!phoneNumber || !password || !otp) {
+      return res.status(400).json({ error: 'Phone number, password, and OTP code are ALL required for 2-factor authentication.' });
+    }
+
+    const cleanPhone = phoneNumber.replace(/[^0-9]/g, '').slice(-10);
+    const result = await db.query('SELECT * FROM farmers WHERE phone_number = $1', [cleanPhone]);
     
     if (result.rows.length === 0) {
       return res.status(401).json({ error: 'Invalid phone number or password' });
     }
     
     const farmer = result.rows[0];
+    if (!farmer.password_hash) {
+      return res.status(401).json({ error: 'No password set for this account. Please use Reset Password.' });
+    }
+
+    // Step 1: Verify Password
     const validPassword = await bcrypt.compare(password, farmer.password_hash);
-    
     if (!validPassword) {
-      return res.status(401).json({ error: 'Invalid phone number or password' });
+      return res.status(401).json({ error: 'Invalid password. Please check your password.' });
+    }
+
+    // Step 2: Verify OTP (Master OTP 123456 or DB generated OTP)
+    const isMasterOtp = otp.trim() === '123456';
+    let otpValid = isMasterOtp;
+
+    if (!isMasterOtp) {
+      const otpRes = await db.query(
+        `SELECT * FROM password_resets 
+         WHERE phone_number = $1 AND user_type = 'FARMER' AND otp_code = $2 AND is_used = FALSE AND expires_at > NOW()
+         ORDER BY created_at DESC LIMIT 1`,
+        [cleanPhone, otp.trim()]
+      );
+
+      if (otpRes.rows.length > 0) {
+        otpValid = true;
+        await db.query('UPDATE password_resets SET is_used = TRUE WHERE id = $1', [otpRes.rows[0].id]);
+      }
+    }
+
+    if (!otpValid) {
+      return res.status(400).json({ error: 'Invalid or expired OTP code. Please click "Request OTP" to receive a valid code or use demo OTP 123456.' });
     }
     
     const token = jwt.sign(
@@ -274,10 +305,10 @@ exports.registerAdmin = async (req, res) => {
 
 exports.loginAdmin = async (req, res) => {
   try {
-    const { loginId, password } = req.body; // loginId can be officer_id, phone_number, or email
+    const { loginId, password, otp } = req.body; // loginId can be officer_id, phone_number, or email
 
-    if (!loginId || !password) {
-      return res.status(400).json({ error: 'Login identifier and password are required' });
+    if (!loginId || !password || !otp) {
+      return res.status(400).json({ error: 'Officer ID/Phone, password, and OTP code are ALL required for 2-factor officer authentication.' });
     }
 
     const cleanId = loginId.trim();
@@ -294,10 +325,34 @@ exports.loginAdmin = async (req, res) => {
     }
 
     const admin = result.rows[0];
-    const validPassword = await bcrypt.compare(password, admin.password_hash);
 
+    // Step 1: Verify Password
+    const validPassword = await bcrypt.compare(password, admin.password_hash);
     if (!validPassword) {
-      return res.status(401).json({ error: 'Invalid password. Please try again.' });
+      return res.status(401).json({ error: 'Invalid password. Please check your official password.' });
+    }
+
+    // Step 2: Verify OTP
+    const cleanPhone = admin.phone_number ? admin.phone_number.replace(/[^0-9]/g, '').slice(-10) : '';
+    const isMasterOtp = otp.trim() === '123456';
+    let otpValid = isMasterOtp;
+
+    if (!isMasterOtp && cleanPhone) {
+      const otpRes = await db.query(
+        `SELECT * FROM password_resets 
+         WHERE phone_number = $1 AND user_type = 'ADMIN' AND otp_code = $2 AND is_used = FALSE AND expires_at > NOW()
+         ORDER BY created_at DESC LIMIT 1`,
+        [cleanPhone, otp.trim()]
+      );
+
+      if (otpRes.rows.length > 0) {
+        otpValid = true;
+        await db.query('UPDATE password_resets SET is_used = TRUE WHERE id = $1', [otpRes.rows[0].id]);
+      }
+    }
+
+    if (!otpValid) {
+      return res.status(400).json({ error: 'Invalid or expired OTP code. Click "Request OTP" or use demo OTP 123456.' });
     }
 
     const token = jwt.sign(
